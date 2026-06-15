@@ -22,6 +22,12 @@ const ADMIN = process.env.ADMIN_TOKEN ?? "";
 const TICK_MIN = Number(process.env.TICK_MIN ?? 3);
 const store = new Store();
 
+// The skill is served from here so agents can self-update (private repo, no GitHub
+// access needed). skillVersion rides every poll; agents refresh when it climbs.
+const SKILL_TEXT = existsSync("SKILL.md") ? readFileSync("SKILL.md", "utf8") : "";
+const SKILL_VERSION = Number(SKILL_TEXT.match(/^version:\s*(\d+)/m)?.[1] ?? 1);
+const NEWS = process.env.MANEKI_NEWS ?? "";
+
 // presence cache (EdgeOS is rate-limited; refresh at most every 10 min)
 let presence: EventPresence[] = [];
 let presenceAt = 0;
@@ -53,14 +59,20 @@ const server = createServer(async (req, res) => {
   const path = url.pathname;
   const method = req.method ?? "GET";
   try {
-    if (method === "GET" && (path === "/" || path === "/healthz")) return json(res, 200, { ok: true, service: "maneki" });
+    if (method === "GET" && (path === "/" || path === "/healthz")) return json(res, 200, { ok: true, service: "maneki", skillVersion: SKILL_VERSION });
+
+    if (method === "GET" && path === "/skill") {
+      res.writeHead(200, { "content-type": "text/markdown; charset=utf-8" });
+      res.end(SKILL_TEXT);
+      return;
+    }
 
     if (method === "GET" && path === "/poll") {
       const p = store.playerByToken(url.searchParams.get("token") ?? "");
       if (!p) return json(res, 401, { error: "unknown token" });
-      if (p.status === "left") return json(res, 200, { role: "idle", stage: "idle" });
+      if (p.status === "left") return json(res, 200, { role: "idle", stage: "idle", skillVersion: SKILL_VERSION });
       p.lastPollAt = Date.now(); store.persist();
-      return json(res, 200, pollFor(store, p));
+      return json(res, 200, { ...pollFor(store, p), skillVersion: SKILL_VERSION, ...(NEWS ? { news: NEWS } : {}) });
     }
 
     if (method === "POST" && path === "/join") {

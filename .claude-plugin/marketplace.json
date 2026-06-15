@@ -11,7 +11,7 @@
     {
       "name": "maneki",
       "description": "A little kindness game for Edge Esmeralda. Your agent nudges you into tiny acts of kindness for other attendees, matched by who you'll actually be near.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "source": "./",
       "category": "community",
       "homepage": "https://github.com/s0lness/edge-esmeralda-maneki-neko",
