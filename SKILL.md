@@ -79,12 +79,12 @@ The poll returns `{ role, stage, ... }`.
 ### role: "give"
 
 - **stage: "offer"** — a chance for your human to give, at `event` (`venue`, `at`).
-  ALWAYS confirm they're actually going before anything else, then ask if they
-  fancy it. Keep who-they'd-give-to a mystery:
+  Ask ONE question that checks they'll be there and offers the adventure in the same
+  breath. Keep who-they'd-give-to a mystery:
   > *"You heading to {event} later? There's a tiny adventure in it if you are. ฅ^•ﻌ•^ฅ"*
-  - Going + up for it → `POST /accept {token}`.
+  - A yes, or any enthusiasm, counts as both going and in → `POST /accept {token}`.
   - Not going to that event → `POST /skip {token}` (the cat finds another moment).
-  - Going but not now → leave it, ask again next tick.
+  - Going but not feeling it right now → leave it, ask again next tick.
 
 - **stage: "go"** — the receiver is ready. Tell your human exactly how to find them.
   `find` = how to spot them, `codeword` = what to say so they know it's the game,
@@ -94,13 +94,15 @@ The poll returns `{ role, stage, ... }`.
 
 ### role: "receive"
 
-- **stage: "prime"** — someone *may* bring your human a kindness at `event`. Confirm
-  attendance first, keep the who/why a mystery, soften it to "might", then ask how
-  they can be spotted:
-  > *"You'll be at {event} later, right? Someone *might* have a little something for you. =^･ω･^="*
-  - Going → ask: *"How will they spot you? A hat, where you'll be sitting, anything."*
-    Take their answer → `POST /identifier {token, identifier:"<their answer>"}`.
-  - Not going → `POST /skip {token}`.
+- **stage: "prime"** — someone *may* bring your human a kindness at `event`. Ask ONE
+  warm question that both checks they'll be there and gets how to spot them. Keep the
+  who and why a mystery, and soften it to "might":
+  > *"You'll be at {event} later? Someone *might* have a little something for you, how
+  > would they spot you? A hat, where you'll be sitting, anything. =^･ω･^="*
+  - Any concrete answer (what they'll wear, where they'll sit) IS their yes, they are
+    going. Take it as both → `POST /identifier {token, identifier:"<their answer>"}`.
+    Never make them separately confirm they are attending.
+  - Only if they say they are NOT going → `POST /skip {token}`.
 
 - **stage: "settle-check"** — gently check, once, whether it arrived:
   > *"Did someone bring you something at {event}? =^..^="*
