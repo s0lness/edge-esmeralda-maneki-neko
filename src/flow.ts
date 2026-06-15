@@ -12,18 +12,37 @@ export interface Poll {
   handle?: string | null;
 }
 
+// Lead-time gating: give people time to prepare, but don't send them to find
+// someone who isn't there yet.
+export const OFFER_LEAD_MIN = 180; // surface offers + primes when the event is within 3h
+export const GO_LEAD_MIN = 20;     // hold the "go" until the event is within 20 min (or live)
+
+/** Minutes from `now` until the event starts (negative once it has started).
+ *  Missing time -> treat as imminent so it never blocks. */
+function minsUntil(at: string | undefined, now: number): number {
+  if (!at) return 0;
+  const t = Date.parse(at);
+  return Number.isNaN(t) ? 0 : (t - now) / 60000;
+}
+
 /** Decide the single most urgent thing this player's agent should surface now.
- *  One action per tick; priority: deliver > prime > offer > settle > reveal. */
-export function pollFor(store: Store, p: Player): Poll {
+ *  One action per tick; priority: deliver > prime > offer > settle > reveal.
+ *  Timing-gated: offers/primes wait until the event is near, the "go" waits
+ *  until it's basically happening. */
+export function pollFor(store: Store, p: Player, now: number = Date.now()): Poll {
   if (p.status === "left") return { role: "idle", stage: "idle" };
   const gp = store.giverPairing(p.id);
   const rp = store.receiverPairing(p.id);
-  if (gp && gp.giverAccepted && gp.identifier)
+  // give: go — only once the event is imminent or live
+  if (gp && gp.giverAccepted && gp.identifier && minsUntil(gp.at, now) <= GO_LEAD_MIN)
     return { role: "give", stage: "go", gift: gp.gift, find: gp.identifier, codeword: gp.codeword, venue: gp.venue, at: gp.at, event: gp.eventTitle };
-  if (rp && !rp.identifier)
+  // receive: prime — within the offer lead, so they have time to answer
+  if (rp && !rp.identifier && minsUntil(rp.at, now) <= OFFER_LEAD_MIN)
     return { role: "receive", stage: "prime", venue: rp.venue, at: rp.at, event: rp.eventTitle };
-  if (gp && !gp.giverAccepted)
+  // give: offer — within the offer lead
+  if (gp && !gp.giverAccepted && minsUntil(gp.at, now) <= OFFER_LEAD_MIN)
     return { role: "give", stage: "offer", venue: gp.venue, at: gp.at, event: gp.eventTitle };
+  // receive: settle-check (no time gate; only fires after the giver acted)
   if (rp && rp.giverDone && !rp.receiverConfirmed)
     return { role: "receive", stage: "settle-check", venue: rp.venue, event: rp.eventTitle };
   const sv = store.revealPairing(p.id);

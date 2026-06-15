@@ -14,11 +14,11 @@ afterEach(() => { if (dir) rmSync(dir, { recursive: true, force: true }); });
 function presence(names: string[], startsAt: string, endsAt: string): EventPresence[] {
   return [{ event: { id: "e1", title: "Daily Lunch", startsAt, endsAt, venue: "The Hub", location: "" }, names: new Set(names.map(nameKey)) }];
 }
-function manualPairing(store: Store, giver: string, receiver: string, endsAt: string): Pairing {
+function manualPairing(store: Store, giver: string, receiver: string, endsAt: string, startInMin = 5): Pairing {
   const now = Date.now();
   const p: Pairing = {
     id: store.newId("g"), giver, receiver, eventId: "e1", eventTitle: "Daily Lunch",
-    venue: "The Hub", at: new Date(now + 3600_000).toISOString(), endsAt,
+    venue: "The Hub", at: new Date(now + startInMin * 60_000).toISOString(), endsAt,
     gift: "bring them a flat white", codeword: "the cat sent me",
     giverAccepted: false, giverDone: false, receiverConfirmed: false, status: "open", createdAt: now,
   };
@@ -125,5 +125,27 @@ describe("gift lifecycle (decoupled settle)", () => {
     expect(pollFor(store, a)).toMatchObject({ role: "idle" });
     a.status = "left"; store.persist();
     expect(pollFor(store, a)).toMatchObject({ role: "idle" });
+  });
+});
+
+describe("lead-time gating", () => {
+  it("holds the offer and prime until the event is within the lead window", () => {
+    const store = freshStore();
+    const a = store.join("alice", "Alice");
+    const b = store.join("bob", "Bob");
+    manualPairing(store, a.id, b.id, future(), 300); // event 5h out, beyond the 3h offer lead
+    expect(pollFor(store, a)).toMatchObject({ role: "idle" }); // giver's offer held
+    expect(pollFor(store, b)).toMatchObject({ role: "idle" }); // receiver's prime held
+  });
+
+  it("holds the go until the event is imminent, even after accept + identifier", () => {
+    const store = freshStore();
+    const a = store.join("alice", "Alice");
+    const b = store.join("bob", "Bob");
+    const pab = manualPairing(store, a.id, b.id, future(), 90); // within offer lead, not go lead
+    pab.giverAccepted = true; pab.identifier = "red scarf"; store.persist();
+    expect(pollFor(store, a)).toMatchObject({ role: "idle" }); // go held (90 min > 20)
+    const tenBefore = Date.now() + 80 * 60_000; // poll 10 min before start
+    expect(pollFor(store, a, tenBefore)).toMatchObject({ role: "give", stage: "go", find: "red scarf" });
   });
 });

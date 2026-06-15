@@ -7,7 +7,7 @@ export interface EventPresence { event: EdgeEvent; names: Set<string> }
 /** Pull upcoming events in the window and who RSVP'd each, keyed by normalized
  *  name. This is the only presence signal: an RSVP to a real dated event proves
  *  co-presence, on-site-that-day, and a public place to meet, all at once. */
-export async function buildPresence(windowHours = 30, maxEvents = 20): Promise<EventPresence[]> {
+export async function buildPresence(windowHours = 12, maxEvents = 20): Promise<EventPresence[]> {
   const now = Date.now();
   const horizon = now + windowHours * 3600_000;
   const events = (await upcomingEvents(new Date(now).toISOString(), 60))
