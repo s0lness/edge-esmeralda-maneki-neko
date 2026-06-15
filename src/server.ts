@@ -206,6 +206,22 @@ const server = createServer(async (req, res) => {
         store.persist();
         return json(res, 200, { ok: true, declinedEvents: n });
       }
+      if (method === "POST" && path === "/admin/pairing-override") {
+        // Operator knows a real-world detail (e.g. "the receiver is at the Loft booth").
+        // Set the meeting place / how-to-find / attendance on an open pairing.
+        const b = await readBody(req);
+        const g = store.players().find((x) => x.edgeosName.toLowerCase() === String(b.giver ?? "").toLowerCase());
+        const r = store.players().find((x) => x.edgeosName.toLowerCase() === String(b.receiver ?? "").toLowerCase());
+        if (!g || !r) return json(res, 404, { error: "player not found" });
+        const pair = store.openPairings().find((p) => p.giver === g.id && p.receiver === r.id);
+        if (!pair) return json(res, 404, { error: "no open pairing between them" });
+        if (b.eventTitle) pair.eventTitle = String(b.eventTitle);
+        if (b.venue) pair.venue = String(b.venue);
+        if (b.identifier) pair.identifier = String(b.identifier);
+        if (b.ready !== undefined) pair.receiverReady = !!b.ready;
+        store.persist();
+        return json(res, 200, { ok: true, pairing: pair });
+      }
       if (method === "POST" && path === "/admin/clear-pairings") {
         // Lapse all open pairings (no declines) for a clean re-match.
         let n = 0;
