@@ -88,12 +88,15 @@ PROJECT=whim-net REGION=europe-west1 ADMIN_TOKEN=$(openssl rand -hex 16) ./deplo
 ```
 
 This stores the EdgeOS key in Secret Manager and deploys to Cloud Run as a single
-warm instance (the file store needs a GCS backend before scaling past one). The
-script prints the live URL and the admin token; put the URL in place of
+warm instance. State persists to a GCS bucket (`MANEKI_GCS_BUCKET`), restored at
+boot and snapshotted after every write, so restarts and redeploys don't lose
+players or the ledger (keep it at one instance so writes don't race). The script
+prints the live URL and the admin token; put the URL in place of
 `https://MANEKI_HOST` in `SKILL.md` (then `npm run sync:skill`).
 
 ## Status
 
-Engine, coordinator, skill, and plugin scaffold built and tested (the full
-EdgeOS-presence -> pairing path is verified). Remaining: rotate the EdgeOS key,
-run the deploy, wire the live URL into the skill, then seed the founder rings.
+Live on Cloud Run (whim-net, europe-west1). Engine, coordinator, skill (v2, with
+server-driven self-update), plugin scaffold, and GCS persistence are built, tested,
+and deployed; the full EdgeOS-presence -> pairing path is verified end to end.
+Remaining: rotate the EdgeOS key, then seed the founders.
