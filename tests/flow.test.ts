@@ -203,8 +203,8 @@ describe("declined events (recurring-RSVP guard)", () => {
     for (const pr of store.openPairings()) if (pr.giver === bob.id || pr.receiver === bob.id) store.decline(bob.id, pr.eventId);
     lapseAll(store, bob.id);
     expect(store.hasDeclined(bob.id, "e1")).toBe(true);
-    // matcher must not re-pair Bob at e1
+    // matcher must not re-pair Bob AT e1 (he may still get a hub offer elsewhere)
     runMatch(store, pres, Date.now());
-    expect(store.openPairings().some((p) => p.giver === bob.id || p.receiver === bob.id)).toBe(false);
+    expect(store.openPairings().some((p) => (p.giver === bob.id || p.receiver === bob.id) && p.eventId === "e1")).toBe(false);
   });
 });

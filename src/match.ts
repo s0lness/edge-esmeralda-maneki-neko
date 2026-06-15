@@ -1,6 +1,6 @@
 import { upcomingEvents, eventParticipants, nameKey, type EdgeEvent } from "./edgeos.ts";
 import { chooseGift, pickCodeword } from "./rings.ts";
-import type { Store, Pairing } from "./state.ts";
+import type { Store, Pairing, Player } from "./state.ts";
 
 export interface EventPresence { event: EdgeEvent; names: Set<string> }
 
@@ -24,72 +24,44 @@ export async function buildPresence(windowHours = 12, maxEvents = 20): Promise<E
   return out;
 }
 
-/** Form opportunistic gift cycles among co-present, free, active players. Each
- *  matched player gives to one neighbor and receives from another, so the ledger
- *  stays balanced and same-day reciprocity holds without a brittle fixed ring.
- *  A player already in an open pairing is left alone until it settles or lapses. */
-const HUB = /hub/i;
-
+/** Make individual gifts (no cycle): pair people two-by-two, one gives to the
+ *  other. Two passes so everyone available gets matched:
+ *    1. within each real event (co-present players)
+ *    2. everyone still free gathers "around The Hub today"
+ *  Roles balance out over time; a player in an open pairing is left alone. */
 export function runMatch(store: Store, presence: EventPresence[], now = Date.now()): Pairing[] {
-  // Floaters: active players with no real RSVP anywhere. Assume they're around The
-  // Hub during the day, so they can be matched with people going to hub events, and
-  // with each other.
-  const rsvped = new Set<string>();
-  for (const ep of presence) for (const n of ep.names) rsvped.add(n);
-  const floaters = store.activePlayers().map((p) => nameKey(p.edgeosName)).filter((k) => !rsvped.has(k));
-
-  const augmented: EventPresence[] = presence.map((ep) => {
-    if (HUB.test(ep.event.venue || "") || HUB.test(ep.event.title || "")) {
-      const names = new Set(ep.names);
-      for (const f of floaters) names.add(f);
-      return { event: ep.event, names };
-    }
-    return ep;
-  });
-  // a catch-all "around The Hub today" bucket so two floaters can still meet
-  if (floaters.length >= 2) {
-    const day = new Date(now).toISOString().slice(0, 10); // date-scoped, so a "not today" skip doesn't block tomorrow
-    augmented.push({
-      event: { id: `hub-${day}`, title: "The Hub", startsAt: new Date(now).toISOString(), endsAt: new Date(now + 8 * 3600_000).toISOString(), venue: "The Hub", location: "" },
-      names: new Set(floaters),
-    });
-  }
-  augmented.sort((a, b) => a.event.startsAt.localeCompare(b.event.startsAt)); // soonest first
-
   const created: Pairing[] = [];
-  for (const { event, names } of augmented) {
-    const here = store.activePlayers().filter((p) =>
-      names.has(nameKey(p.edgeosName)) && !store.hasOpenPairing(p.id) && !store.hasDeclined(p.id, event.id)
-    );
-    if (here.length < 2) continue;
-    // No cycle: just make individual gifts, pairing people two-by-two. One gives to
-    // the other this round; roles balance out over time on their own.
+
+  const make = (giver: Player, receiver: Player, event: EdgeEvent) => {
+    const pairing: Pairing = {
+      id: store.newId("g"), giver: giver.id, receiver: receiver.id,
+      eventId: event.id, eventTitle: event.title,
+      venue: event.venue || event.location || undefined,
+      at: event.startsAt || undefined, endsAt: event.endsAt || undefined,
+      gift: chooseGift(`${event.title} ${event.venue}`, receiver.preferences),
+      codeword: pickCodeword(),
+      receiverReady: false, giverAccepted: false, giverDone: false, receiverConfirmed: false,
+      status: "open", createdAt: now,
+    };
+    store.addPairing(pairing);
+    created.push(pairing);
+  };
+
+  const pairPool = (players: Player[], event: EdgeEvent) => {
+    const here = players.filter((p) => !store.hasOpenPairing(p.id) && !store.hasDeclined(p.id, event.id));
     here.sort((a, b) => (b.given - b.received) - (a.given - a.received));
-    for (let i = 0; i + 1 < here.length; i += 2) {
-      const giver = here[i];
-      const receiver = here[i + 1];
-      const pairing: Pairing = {
-        id: store.newId("g"),
-        giver: giver.id,
-        receiver: receiver.id,
-        eventId: event.id,
-        eventTitle: event.title,
-        venue: event.venue || event.location || undefined,
-        at: event.startsAt || undefined,
-        endsAt: event.endsAt || undefined,
-        gift: chooseGift(`${event.title} ${event.venue}`, receiver.preferences),
-        codeword: pickCodeword(),
-        receiverReady: false,
-        giverAccepted: false,
-        giverDone: false,
-        receiverConfirmed: false,
-        status: "open",
-        createdAt: now,
-      };
-      store.addPairing(pairing);
-      created.push(pairing);
-    }
-  }
+    for (let i = 0; i + 1 < here.length; i += 2) make(here[i], here[i + 1], event);
+  };
+
+  // pass 1: real events, soonest first
+  for (const { event, names } of [...presence].sort((a, b) => a.event.startsAt.localeCompare(b.event.startsAt)))
+    pairPool(store.activePlayers().filter((p) => names.has(nameKey(p.edgeosName))), event);
+
+  // pass 2: anyone still free is assumed to be around The Hub today
+  const day = new Date(now).toISOString().slice(0, 10); // date-scoped, so "not today" doesn't block tomorrow
+  const hubEvent: EdgeEvent = { id: `hub-${day}`, title: "The Hub", startsAt: new Date(now).toISOString(), endsAt: new Date(now + 8 * 3600_000).toISOString(), venue: "The Hub", location: "" };
+  pairPool(store.activePlayers(), hubEvent);
+
   return created;
 }
 

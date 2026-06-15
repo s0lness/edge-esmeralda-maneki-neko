@@ -3,13 +3,15 @@ import type { Store, Ring, Link } from "./state.ts";
 /** Featherweight, mostly-free acts. The gift is attention, not money.
  *  `words` gifts need no object, so they work where people are moving (Run Club). */
 export const GIFTS: { text: string; words: boolean }[] = [
-  { text: "tell them the most interesting thing you heard today", words: true },
-  { text: "give them a genuine compliment about something they made or said", words: true },
-  { text: "share one small recommendation - a book, a spot, a person they should meet", words: true },
-  { text: "ask them the best question you've been asked this week, and answer it yourself first", words: true },
-  { text: "tell them one specific thing you appreciate about Edge that they might have missed", words: true },
   { text: "bring them a coffee or tea", words: false },
   { text: "bring them a snack", words: false },
+  { text: "bring them a piece of fruit", words: false },
+  { text: "bring them a cold drink or a fresh glass of water", words: false },
+  { text: "bring them a little pastry or sweet treat", words: false },
+  { text: "bring them a single flower", words: false },
+  // word-only, used only where people are moving (runs, walks) and can't take an object:
+  { text: "give them a genuine compliment about something they made or said", words: true },
+  { text: "tell them the most interesting thing you heard today", words: true },
 ];
 
 /** Venues where people move (runs, walks) can't take a physical hand-off. */
@@ -32,7 +34,7 @@ export function pickCodeword(): string { return pick(CODEWORDS); }
  *  and the receiver's stored drink preference when the act is a drink. */
 export function chooseGift(venueOrTitle = "", prefs?: { drink?: string }): string {
   const base = giftFor(venueOrTitle);
-  if (prefs?.drink && /coffee|tea|drink|water|snack/i.test(base)) return `bring them a ${prefs.drink}`;
+  if (prefs?.drink && /coffee|tea|drink|water/i.test(base)) return `bring them a ${prefs.drink}`;
   return base;
 }
 
