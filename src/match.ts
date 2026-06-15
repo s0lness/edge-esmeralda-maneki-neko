@@ -28,9 +28,35 @@ export async function buildPresence(windowHours = 12, maxEvents = 20): Promise<E
  *  matched player gives to one neighbor and receives from another, so the ledger
  *  stays balanced and same-day reciprocity holds without a brittle fixed ring.
  *  A player already in an open pairing is left alone until it settles or lapses. */
+const HUB = /hub/i;
+
 export function runMatch(store: Store, presence: EventPresence[], now = Date.now()): Pairing[] {
+  // Floaters: active players with no real RSVP anywhere. Assume they're around The
+  // Hub during the day, so they can be matched with people going to hub events, and
+  // with each other.
+  const rsvped = new Set<string>();
+  for (const ep of presence) for (const n of ep.names) rsvped.add(n);
+  const floaters = store.activePlayers().map((p) => nameKey(p.edgeosName)).filter((k) => !rsvped.has(k));
+
+  const augmented: EventPresence[] = presence.map((ep) => {
+    if (HUB.test(ep.event.venue || "") || HUB.test(ep.event.title || "")) {
+      const names = new Set(ep.names);
+      for (const f of floaters) names.add(f);
+      return { event: ep.event, names };
+    }
+    return ep;
+  });
+  // a catch-all "around The Hub today" bucket so two floaters can still meet
+  if (floaters.length >= 2) {
+    augmented.push({
+      event: { id: "hub-daytime", title: "The Hub", startsAt: new Date(now).toISOString(), endsAt: new Date(now + 8 * 3600_000).toISOString(), venue: "The Hub", location: "" },
+      names: new Set(floaters),
+    });
+  }
+  augmented.sort((a, b) => a.event.startsAt.localeCompare(b.event.startsAt)); // soonest first
+
   const created: Pairing[] = [];
-  for (const { event, names } of presence) {
+  for (const { event, names } of augmented) {
     const here = store.activePlayers().filter((p) =>
       names.has(nameKey(p.edgeosName)) && !store.hasOpenPairing(p.id) && !store.hasDeclined(p.id, event.id)
     );

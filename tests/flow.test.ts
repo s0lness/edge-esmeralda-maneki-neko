@@ -170,6 +170,29 @@ describe("lead-time gating", () => {
   });
 });
 
+describe("hub fallback (no-RSVP floaters)", () => {
+  it("pulls a no-RSVP floater into a hub event with someone who is going", () => {
+    const store = freshStore();
+    const goer = store.join("goer", "Hub Goer");
+    const floater = store.join("floater", "No Rsvp");
+    const pres: EventPresence[] = [{
+      event: { id: "h1", title: "Deep Work", startsAt: future(), endsAt: future(), venue: "The Hub - Co-Work", location: "" },
+      names: new Set([nameKey("Hub Goer")]), // only the goer RSVP'd
+    }];
+    runMatch(store, pres, Date.now());
+    const ids = new Set([goer.id, floater.id]);
+    expect(store.pairings().some((p) => ids.has(p.giver) && ids.has(p.receiver))).toBe(true);
+  });
+
+  it("matches two floaters around the hub even with no events at all", () => {
+    const store = freshStore();
+    store.join("a", "Aaa Bbb");
+    store.join("b", "Ccc Ddd");
+    runMatch(store, [], Date.now());
+    expect(store.openPairings().length).toBeGreaterThan(0);
+  });
+});
+
 describe("declined events (recurring-RSVP guard)", () => {
   it("skip records a decline so the matcher won't re-pair them at that event", () => {
     const store = freshStore();
