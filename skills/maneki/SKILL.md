@@ -1,11 +1,6 @@
 ---
 name: maneki
 description: A little kindness game at Edge. Your human is in the game; on a heartbeat you check whether it's their turn to bring someone a small kindness, or whether someone is about to bring them one. Nudge them warmly, confirm they're actually going to the event, report back. Read when the human mentions maneki, kindness, the game, or on your recurring tick.
-metadata:
-  openclaw:
-    requires:
-      config:
-        - env.vars.MANEKI_TOKEN
 ---
 
 # maneki — the kindness game

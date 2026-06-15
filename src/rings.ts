@@ -25,6 +25,17 @@ const CODEWORDS = ["maneki sent me", "the cat sent me", "lucky paw", "pass the s
 let rnd = 0; // deterministic-ish rotation (no Math.random in this env)
 const pick = <T>(a: T[]) => a[rnd++ % a.length];
 
+/** A codeword for one pairing. */
+export function pickCodeword(): string { return pick(CODEWORDS); }
+
+/** Choose a gift for a hop, honoring where people are (moving venues get word-only)
+ *  and the receiver's stored drink preference when the act is a drink. */
+export function chooseGift(venueOrTitle = "", prefs?: { drink?: string }): string {
+  const base = giftFor(venueOrTitle);
+  if (prefs?.drink && /coffee|tea|drink|water|snack/i.test(base)) return `bring them a ${prefs.drink}`;
+  return base;
+}
+
 /** An anchor event ties a ring to one real, shared place + time. */
 export interface Anchor { venue?: string; at?: string; title?: string }
 

@@ -1,0 +1,10 @@
+node_modules
+.git
+.env
+*.db.json
+logs
+tests
+DESIGN.md
+README.md
+*.directory.md
+edge_esmeralda_telegram_directory.md

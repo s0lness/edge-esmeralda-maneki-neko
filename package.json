@@ -2,7 +2,7 @@
   "name": "maneki",
   "version": "0.1.0",
   "private": true,
-  "description": "maneki - a kindness-cascade game: agents dare their humans into small acts of kindness, routed in rings that try to close.",
+  "description": "maneki - a kindness game for Edge Esmeralda: personal agents nudge their humans into tiny acts of kindness, matched by EdgeOS co-presence and balanced by a private ledger.",
   "type": "module",
   "engines": {
     "node": ">=20.19"
@@ -14,7 +14,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "grammy": "^1.44.0",
     "tsx": "^4.22.4"
   },
   "devDependencies": {

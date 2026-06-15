@@ -2,3 +2,6 @@ node_modules/
 *.db.json
 logs/
 .env
+# Attendee directory is PII (586 Telegram handles). Never commit it.
+*directory*.md
+!DESIGN.md
