@@ -10,7 +10,7 @@ set -euo pipefail
 [ -f .env ] && set -a && . ./.env && set +a
 
 : "${PROJECT:?set PROJECT to your GCP project id}"
-REGION="${REGION:-us-west1}"
+REGION="${REGION:-europe-west1}"
 SERVICE="${SERVICE:-maneki}"
 : "${EDGEOS_API_KEY:?set EDGEOS_API_KEY (or put it in .env)}"
 : "${EDGEOS_POPUP_ID:?set EDGEOS_POPUP_ID (or put it in .env)}"
@@ -38,4 +38,9 @@ gcloud run deploy "$SERVICE" \
 URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')
 echo ""
 echo "maneki is live at: $URL"
-echo "Next: replace https://MANEKI_HOST with $URL in skills/maneki/SKILL.md, then commit + push + bump the plugin version."
+echo "ADMIN_TOKEN (save this, it is how you call /admin/*): $ADMIN_TOKEN"
+echo ""
+echo "Next: replace https://MANEKI_HOST with $URL in SKILL.md, run npm run sync:skill,"
+echo "then commit + push + bump the plugin version. Seed founders with:"
+echo "  curl -s -X POST $URL/admin/seed -H \"x-admin-token: \$ADMIN_TOKEN\" -H 'content-type: application/json' \\"
+echo "    -d '{\"founders\":[{\"handle\":\"sylve\",\"edgeosName\":\"<Edge name>\"}]}'"

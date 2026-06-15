@@ -1,16 +1,28 @@
+```
+ /\_/\
+( =^.^= )
+ (")_(")
+```
+
 # Edge Esmeralda — Maneki Neko
 
 A little kindness game for Edge Esmeralda. Personal AI agents nudge their humans
 into tiny acts of kindness for other attendees: a coffee, a snack, a flower, a
-kind word. After Bruce Sterling's "Maneki Neko", the network keeps everyone
-whole, so if you give, someone comes your way too.
+kind word. After Bruce Sterling's [Maneki Neko](https://www.lightspeedmagazine.com/fiction/maneki-neko/),
+the network keeps everyone whole, so if you give, someone comes your way too.
+
+## Are you an agent? Read the skill.
+
+If you are a personal agent whose human is at Edge Esmeralda and you want them to
+play, **read [`SKILL.md`](SKILL.md)** at the root of this repo. It tells you how to
+join your human, set a heartbeat, and run the game on their behalf. That one file
+is the whole contract; everything else here is how the coordinator behind it works.
 
 ## How it works
 
-- People install a small **skill** into their own personal agent (`skill/`).
-- The agent registers them and, on a ~30 minute heartbeat, checks a central
-  **coordinator** to see if it's their turn to give, or whether someone is about
-  to bring them a kindness.
+- An agent reads [`SKILL.md`](SKILL.md) and registers its human.
+- On a ~30 minute heartbeat the agent checks a central **coordinator** to see if
+  it's their turn to give, or whether someone is about to bring them a kindness.
 - Matching is deterministic and physical, not semantic: two in-game people who
   both RSVP'd the same upcoming Edge event. No intent graph, no networking.
 - A private **ledger** keeps everyone near balance: give today, receive today.
@@ -19,7 +31,9 @@ See [DESIGN.md](DESIGN.md) for the full design, the flow, and the open cracks.
 
 ## Layout
 
-- `skills/maneki/SKILL.md` — the agent skill (voice, flow, endpoints).
+- `SKILL.md` — the agent skill (voice, flow, endpoints). The canonical copy, at the
+  root so agents find it. `skills/maneki/SKILL.md` is an identical copy for plugin
+  install; a test keeps them in sync (`npm run sync:skill` after editing the root).
 - `.claude-plugin/` — plugin + marketplace manifests, so an agent can install it.
 - `src/server.ts` — the HTTP coordinator (the orchestra).
 - `src/match.ts` — EdgeOS co-presence matcher + expiry.
@@ -49,15 +63,20 @@ ADMIN_TOKEN=dev npm start   # serves on :8080
 
 ## Deploy
 
-Where gcloud is installed and authed (Cloud Shell / WSL / Mac):
+`deploy.sh` needs the `gcloud` CLI. Easiest is Google Cloud Shell (gcloud is
+preinstalled and already authed): open it from the GCP console, then:
 
 ```
-PROJECT=your-project REGION=us-west1 ADMIN_TOKEN=$(openssl rand -hex 16) ./deploy.sh
+git clone https://github.com/s0lness/edge-esmeralda-maneki-neko
+cd edge-esmeralda-maneki-neko
+printf 'EDGEOS_API_KEY=eos_live_xxx\nEDGEOS_POPUP_ID=43746fd0-bce2-472b-93e4-a438177b2dff\n' > .env
+PROJECT=whim-net REGION=europe-west1 ADMIN_TOKEN=$(openssl rand -hex 16) ./deploy.sh
 ```
 
 This stores the EdgeOS key in Secret Manager and deploys to Cloud Run as a single
 warm instance (the file store needs a GCS backend before scaling past one). The
-script prints the live URL; put it in place of `https://MANEKI_HOST` in the skill.
+script prints the live URL and the admin token; put the URL in place of
+`https://MANEKI_HOST` in `SKILL.md` (then `npm run sync:skill`).
 
 ## Status
 
