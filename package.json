@@ -1,0 +1,25 @@
+{
+  "name": "maneki",
+  "version": "0.1.0",
+  "private": true,
+  "description": "maneki - a kindness-cascade game: agents dare their humans into small acts of kindness, routed in rings that try to close.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "grammy": "^1.44.0",
+    "tsx": "^4.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8"
+  }
+}
