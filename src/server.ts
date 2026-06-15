@@ -4,10 +4,12 @@
  *  its own human. See DESIGN.md. */
 import { createServer, type ServerResponse, type IncomingMessage } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { Store } from "./state.ts";
 import { buildPresence, runMatch, expireStale, type EventPresence } from "./match.ts";
 import { pollFor, lapseAll } from "./flow.ts";
 import { telegramFor } from "./directory.ts";
+import { restore } from "./persist.ts";
 
 // local .env loader (no-op on Cloud Run, where env comes from the platform)
 if (existsSync(".env")) {
@@ -142,8 +144,15 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`maneki coordinator on :${PORT} (tick ${TICK_MIN}m)`));
-setInterval(() => { tick().catch(() => {}); }, TICK_MIN * 60_000);
-setTimeout(() => { tick().catch(() => {}); }, 4000);
+// Boot: pull any GCS snapshot into the local file BEFORE serving, so a fresh Cloud
+// Run instance comes up with the saved players + ledger instead of empty.
+const DB_PATH = resolve(process.cwd(), process.env.MANEKI_DB ?? "maneki.db.json");
+(async () => {
+  await restore(DB_PATH);
+  store.reload();
+  server.listen(PORT, () => console.log(`maneki coordinator on :${PORT} (tick ${TICK_MIN}m, skill v${SKILL_VERSION})`));
+  setInterval(() => { tick().catch(() => {}); }, TICK_MIN * 60_000);
+  setTimeout(() => { tick().catch(() => {}); }, 4000);
+})();
 
 export { pollFor, store };

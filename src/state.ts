@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
+import { scheduleUpload } from "./persist.ts";
 
 export interface Preferences { drink?: string; avoid?: string }
 
@@ -66,10 +67,18 @@ export class Store {
   private data: Data;
   constructor(file = process.env.MANEKI_DB ?? "maneki.db.json") {
     this.path = resolve(process.cwd(), file);
-    const fresh: Data = { players: [], rings: [], pairings: [], flags: [], seq: 1 };
-    this.data = existsSync(this.path) ? { ...fresh, ...JSON.parse(readFileSync(this.path, "utf8")) } : fresh;
+    this.data = this.read();
   }
-  private save() { writeFileSync(this.path, JSON.stringify(this.data, null, 2)); }
+  private read(): Data {
+    const fresh: Data = { players: [], rings: [], pairings: [], flags: [], seq: 1 };
+    return existsSync(this.path) ? { ...fresh, ...JSON.parse(readFileSync(this.path, "utf8")) } : fresh;
+  }
+  /** Re-read from the local file. Call after a boot-time GCS restore overwrote it. */
+  reload() { this.data = this.read(); }
+  private save() {
+    writeFileSync(this.path, JSON.stringify(this.data, null, 2));
+    scheduleUpload(this.path); // GCS snapshot (no-op outside Cloud Run)
+  }
   persist() { this.save(); }
 
   // players

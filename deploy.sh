@@ -25,15 +25,18 @@ else
   printf '%s' "$EDGEOS_API_KEY" | gcloud secrets versions add edgeos-api-key --data-file=-
 fi
 
-# Single warm instance keeps the file-based store alive between requests. Swap to
-# a GCS-backed store before scaling past one instance (see DESIGN, persistence).
+# State persists to GCS (MANEKI_GCS_BUCKET); keep one instance so writes don't race.
+# --set-env-vars REPLACES the whole list, so every var must be present here.
+ENVS="EDGEOS_POPUP_ID=${EDGEOS_POPUP_ID},ADMIN_TOKEN=${ADMIN_TOKEN},TICK_MIN=3"
+[ -n "${MANEKI_GCS_BUCKET:-}" ] && ENVS="${ENVS},MANEKI_GCS_BUCKET=${MANEKI_GCS_BUCKET}"
+
 gcloud run deploy "$SERVICE" \
   --source . \
   --region "$REGION" \
   --allow-unauthenticated \
   --min-instances 1 --max-instances 1 \
   --set-secrets "EDGEOS_API_KEY=edgeos-api-key:latest" \
-  --set-env-vars "EDGEOS_POPUP_ID=${EDGEOS_POPUP_ID},ADMIN_TOKEN=${ADMIN_TOKEN},TICK_MIN=3"
+  --set-env-vars "$ENVS"
 
 URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')
 echo ""
