@@ -44,14 +44,26 @@ export interface EdgeParticipant {
  *  player by name at /join time. */
 export async function eventParticipants(eventId: string): Promise<EdgeParticipant[]> {
   if (!KEY()) return [];
-  const d = await get(`/event-participants/portal/participants?event_id=${eventId}`);
-  return arr(d).map((p) => ({
-    profileId: String(p.profile_id ?? ""),
-    firstName: String(p.first_name ?? ""),
-    lastName: String(p.last_name ?? ""),
-    status: String(p.status ?? ""),
-    role: String(p.role ?? ""),
-  }));
+  // The endpoint paginates: { paging: { limit, offset, total } }, offset via `skip`.
+  // Page through until we've pulled `total`, else we silently see only the first ~95.
+  const out: EdgeParticipant[] = [];
+  const limit = 200;
+  for (let skip = 0, guard = 0; guard < 100; guard++) {
+    const d = await get(`/event-participants/portal/participants?event_id=${eventId}&limit=${limit}&skip=${skip}`);
+    const rows = arr(d);
+    for (const p of rows) out.push({
+      profileId: String(p.profile_id ?? ""),
+      firstName: String(p.first_name ?? ""),
+      lastName: String(p.last_name ?? ""),
+      status: String(p.status ?? ""),
+      role: String(p.role ?? ""),
+    });
+    const paging = (d as { paging?: { total?: number } }).paging;
+    const total = Number(paging?.total ?? out.length);
+    skip += rows.length;
+    if (!rows.length || skip >= total) break;
+  }
+  return out;
 }
 
 /** Normalize a name for fuzzy join between EdgeOS records and Maneki handles. */
