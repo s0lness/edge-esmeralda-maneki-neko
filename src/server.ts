@@ -101,7 +101,7 @@ const server = createServer(async (req, res) => {
       if (!p) return json(res, 401, { error: "unknown token" });
       switch (path) {
         case "/accept": { const gp = store.giverPairing(p.id); if (gp) gp.giverAccepted = true; store.persist(); break; }
-        case "/identifier": { const rp = store.receiverPairing(p.id); if (rp && b.identifier) rp.identifier = String(b.identifier); store.persist(); break; }
+        case "/identifier": { const rp = store.receiverPairing(p.id); if (rp) { rp.receiverReady = true; if (b.identifier) rp.identifier = String(b.identifier); } store.persist(); break; }
         case "/done": { const gp = store.giverPairing(p.id); if (gp) { gp.giverDone = true; p.given++; store.trySettle(gp); } store.persist(); break; }
         case "/confirm": { const rp = store.receiverPairing(p.id); if (rp) { rp.receiverConfirmed = true; p.received++; store.trySettle(rp); } store.persist(); break; }
         case "/reveal": {
@@ -110,7 +110,13 @@ const server = createServer(async (req, res) => {
           const other = sv ? store.player(sv.giver === p.id ? sv.receiver : sv.giver) : undefined;
           return json(res, 200, { ok: true, handle: b.ok && other ? other.telegram ?? null : null });
         }
-        case "/skip": lapseAll(store, p.id); break;
+        case "/skip": {
+          // "not going to this event" -> remember it so the matcher stops re-pairing
+          // them there (EdgeOS over-reports recurring-event RSVPs), then lapse.
+          for (const pr of store.openPairings()) if (pr.giver === p.id || pr.receiver === p.id) store.decline(p.id, pr.eventId);
+          lapseAll(store, p.id);
+          break;
+        }
         case "/leave": p.status = "left"; store.persist(); lapseAll(store, p.id); break;
         case "/flag": store.flag(p.id, String(b.note ?? "")); break;
       }
@@ -133,6 +139,19 @@ const server = createServer(async (req, res) => {
         });
         store.persist();
         return json(res, 200, { seeded });
+      }
+      if (method === "POST" && path === "/admin/decline") {
+        // Operator clears someone from an event (e.g. EdgeOS falsely RSVP'd them to a
+        // whole recurring series). Declines every in-window event matching the title.
+        const b = await readBody(req);
+        const pl = store.players().find((x) => x.edgeosName.toLowerCase() === String(b.edgeosName ?? "").toLowerCase());
+        if (!pl) return json(res, 404, { error: "player not found" });
+        const title = String(b.eventTitle ?? "").toLowerCase();
+        let n = 0;
+        for (const ep of presence) if (title && ep.event.title.toLowerCase().includes(title)) { store.decline(pl.id, ep.event.id); n++; }
+        for (const pr of store.openPairings()) if ((pr.giver === pl.id || pr.receiver === pl.id) && store.hasDeclined(pl.id, pr.eventId)) pr.status = "lapsed";
+        store.persist();
+        return json(res, 200, { ok: true, declinedEvents: n });
       }
       if (method === "GET" && path === "/admin/state")
         return json(res, 200, { players: store.players(), pairings: store.pairings(), flags: store.flags() });

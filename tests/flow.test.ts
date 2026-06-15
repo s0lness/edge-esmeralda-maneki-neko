@@ -20,7 +20,7 @@ function manualPairing(store: Store, giver: string, receiver: string, endsAt: st
     id: store.newId("g"), giver, receiver, eventId: "e1", eventTitle: "Daily Lunch",
     venue: "The Hub", at: new Date(now + startInMin * 60_000).toISOString(), endsAt,
     gift: "bring them a flat white", codeword: "the cat sent me",
-    giverAccepted: false, giverDone: false, receiverConfirmed: false, status: "open", createdAt: now,
+    receiverReady: false, giverAccepted: false, giverDone: false, receiverConfirmed: false, status: "open", createdAt: now,
   };
   store.addPairing(p);
   return p;
@@ -71,9 +71,9 @@ describe("gift lifecycle (decoupled settle)", () => {
     const b = store.join("bob", "Bob");
     const pab = manualPairing(store, a.id, b.id, future());
 
-    // receiver is primed first
+    // receiver is primed first; answering confirms attendance (+ optional description)
     expect(pollFor(store, b)).toMatchObject({ role: "receive", stage: "prime" });
-    pab.identifier = "green cap by the fig tree"; store.persist();
+    pab.receiverReady = true; pab.identifier = "green cap by the fig tree"; store.persist();
 
     // giver is offered (attendance/willingness), who + gift still hidden
     expect(pollFor(store, a)).toMatchObject({ role: "give", stage: "offer" });
@@ -143,7 +143,7 @@ describe("lead-time gating", () => {
     const a = store.join("alice", "Alice");
     const b = store.join("bob", "Bob");
     const pab = manualPairing(store, a.id, b.id, future(), 90); // within offer lead, not go lead
-    pab.giverAccepted = true; pab.identifier = "red scarf"; store.persist();
+    pab.giverAccepted = true; pab.receiverReady = true; pab.identifier = "red scarf"; store.persist();
     expect(pollFor(store, a)).toMatchObject({ role: "idle" }); // go held (90 min > 20)
     const tenBefore = Date.now() + 80 * 60_000; // poll 10 min before start
     expect(pollFor(store, a, tenBefore)).toMatchObject({ role: "give", stage: "go", find: "red scarf" });
@@ -154,9 +154,37 @@ describe("lead-time gating", () => {
     const a = store.join("alice", "Alice");
     const b = store.join("bob", "Bob Smith");
     const pab = manualPairing(store, a.id, b.id, future(), 5); // imminent
-    pab.giverAccepted = true; store.persist(); // accepted, but no identifier ever provided
+    pab.giverAccepted = true; pab.receiverReady = true; store.persist(); // confirmed attending, no description
     const go = pollFor(store, a);
     expect(go).toMatchObject({ role: "give", stage: "go", who: "Bob Smith" });
     expect(go.find).toBeUndefined();
+  });
+
+  it("never sends the giver until the receiver has confirmed they'll be there", () => {
+    const store = freshStore();
+    const a = store.join("alice", "Alice");
+    const b = store.join("bob", "Bob");
+    const pab = manualPairing(store, a.id, b.id, future(), 5); // imminent
+    pab.giverAccepted = true; store.persist(); // giver ready, but receiver has NOT confirmed
+    expect(pollFor(store, a)).toMatchObject({ role: "idle" }); // held: no go
+  });
+});
+
+describe("declined events (recurring-RSVP guard)", () => {
+  it("skip records a decline so the matcher won't re-pair them at that event", () => {
+    const store = freshStore();
+    const names = ["Alice A", "Bob B"];
+    names.forEach((n) => store.join(n.toLowerCase(), n));
+    const pres = presence(names, future(), future()); // event id "e1"
+    runMatch(store, pres, Date.now());
+    expect(store.openPairings().length).toBeGreaterThan(0);
+    // the receiver declines: lapse + record decline for that event
+    const bob = store.players().find((p) => p.edgeosName === "Bob B")!;
+    for (const pr of store.openPairings()) if (pr.giver === bob.id || pr.receiver === bob.id) store.decline(bob.id, pr.eventId);
+    lapseAll(store, bob.id);
+    expect(store.hasDeclined(bob.id, "e1")).toBe(true);
+    // matcher must not re-pair Bob at e1
+    runMatch(store, pres, Date.now());
+    expect(store.openPairings().some((p) => p.giver === bob.id || p.receiver === bob.id)).toBe(false);
   });
 });

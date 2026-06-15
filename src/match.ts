@@ -32,7 +32,7 @@ export function runMatch(store: Store, presence: EventPresence[], now = Date.now
   const created: Pairing[] = [];
   for (const { event, names } of presence) {
     const here = store.activePlayers().filter((p) =>
-      names.has(nameKey(p.edgeosName)) && !store.hasOpenPairing(p.id)
+      names.has(nameKey(p.edgeosName)) && !store.hasOpenPairing(p.id) && !store.hasDeclined(p.id, event.id)
     );
     if (here.length < 2) continue;
     // those most "owed" (gave more than they've received) get placed to receive sooner
@@ -53,6 +53,7 @@ export function runMatch(store: Store, presence: EventPresence[], now = Date.now
         endsAt: event.endsAt || undefined,
         gift: chooseGift(`${event.title} ${event.venue}`, receiver.preferences),
         codeword: pickCodeword(),
+        receiverReady: false,
         giverAccepted: false,
         giverDone: false,
         receiverConfirmed: false,

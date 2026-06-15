@@ -36,7 +36,8 @@ export interface Pairing {
   endsAt?: string;          // ISO end, for expiry
   gift: string;
   codeword: string;
-  identifier?: string;      // receiver's "how to spot me"
+  identifier?: string;      // receiver's optional "how to spot me"
+  receiverReady: boolean;   // receiver confirmed they'll actually be at THIS event
   giverAccepted: boolean;
   giverDone: boolean;       // giver says they gave -> giver.given++
   receiverConfirmed: boolean; // receiver says they got it -> receiver.received++
@@ -60,7 +61,7 @@ export interface Ring {
   status: "open" | "closed" | "stalled"; createdAt: number; closedAt?: number;
 }
 
-interface Data { players: Player[]; rings: Ring[]; pairings: Pairing[]; flags: Flag[]; seq: number }
+interface Data { players: Player[]; rings: Ring[]; pairings: Pairing[]; flags: Flag[]; declines: string[]; seq: number }
 
 export class Store {
   private path: string;
@@ -70,7 +71,7 @@ export class Store {
     this.data = this.read();
   }
   private read(): Data {
-    const fresh: Data = { players: [], rings: [], pairings: [], flags: [], seq: 1 };
+    const fresh: Data = { players: [], rings: [], pairings: [], flags: [], declines: [], seq: 1 };
     return existsSync(this.path) ? { ...fresh, ...JSON.parse(readFileSync(this.path, "utf8")) } : fresh;
   }
   /** Re-read from the local file. Call after a boot-time GCS restore overwrote it. */
@@ -126,6 +127,14 @@ export class Store {
 
   flag(playerId: string, note: string) { this.data.flags.push({ playerId, note, at: Date.now() }); this.save(); }
   flags() { return this.data.flags; }
+
+  // declined events: a player said they won't be at a given event, so the matcher
+  // must not keep re-pairing them there (EdgeOS over-reports recurring-event RSVPs).
+  decline(playerId: string, eventId: string) {
+    const key = `${playerId}|${eventId}`;
+    if (!this.data.declines.includes(key)) { this.data.declines.push(key); this.save(); }
+  }
+  hasDeclined(playerId: string, eventId: string) { return this.data.declines.includes(`${playerId}|${eventId}`); }
 
   // legacy rings
   addRing(r: Ring) { this.data.rings.push(r); this.save(); }
