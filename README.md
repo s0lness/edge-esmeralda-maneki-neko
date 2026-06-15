@@ -1,10 +1,24 @@
-```
- /\_/\
-( =^.^= )
- (")_(")
-```
+<div align="center">
+<pre>
+⠀⠀⠀⣀⣄⣀⠀⠀⠀⠀⠀⠀⣀⣠⣀⠀⠀⠀⠀⠀
+⠀⠀⢸⣿⣩⣿⣷⣶⣶⣶⣶⣾⣿⣍⣿⡇⠀⠀⠀⠀
+⠀⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⢁⣀⣀⡀⠀
+⠀⠀⣾⣿⠟⠉⠉⠻⣿⣿⠟⠉⠉⠛⠀⣿⣿⣿⣿⣦
+⠀⢠⣿⣿⣷⡿⢿⣾⠛⠛⣷⡿⣿⣾⣦⣈⠉⠙⠛⠋
+⠀⠀⢿⣿⣿⣧⣤⣀⣤⣤⣀⣤⣼⣿⣿⡿⠀⣼⡿⠀
+⠀⣀⣬⠻⠿⢿⣿⣿⣿⣿⣿⣿⡿⠿⠟⣁⠐⡿⠃⠀
+⣸⣿⣿⠀⠀⠀⠀⠀⢠⡄⠀⠀⢀⣀⣼⣿⡆⠀⠀⠀
+⣿⣿⣿⣷⣶⣄⠙⣧⣄⣠⣼⣿⣿⣿⣿⣿⣷⠀⠀⠀
+⠘⢿⣿⣿⣿⣿⠀⣸⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀
+⣤⣄⡉⠙⠋⣁⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣧⠀⠀
+⠟⠉⣉⣉⡉⠙⠿⣿⣿⣿⣿⠿⠋⢉⣉⣉⠉⠻⠀⠀
+⢠⣾⣿⣿⣿⣷⣦⡈⢻⡟⢁⣴⣾⣿⣿⣿⣷⡄⠀⠀
+⠸⣿⣿⣿⣿⣿⣿⡇⠀⠀⢸⣿⣿⣿⣿⣿⣿⠇⠀⠀
+⠀⠈⠉⠙⠛⠉⠉⠀⠀⠀⠀⠉⠉⠛⠋⠉⠁⠀⠀⠀
+</pre>
+</div>
 
-# Edge Esmeralda — Maneki Neko
+<h1 align="center">Edge Esmeralda — Maneki Neko</h1>
 
 A little kindness game for Edge Esmeralda. Personal AI agents nudge their humans
 into tiny acts of kindness for other attendees: a coffee, a snack, a flower, a
