@@ -45,9 +45,10 @@ async function tick() {
   runMatch(store, presence);
 }
 
-/** A shareable, no-dependency landing page. Forward the URL and anyone can join. */
+/** A shareable, no-dependency landing page. Forward the URL and anyone can join.
+ *  The agent already knows the human's Edge name, so the snippet has no fill-in. */
 function landingHtml(base: string): string {
-  const snippet = `play maneki — read ${base}/skill and follow it. My Edge name is [your full name].`;
+  const snippet = `play maneki — read ${base}/skill and follow it.`;
   return `<!doctype html><html lang=en><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>maneki — a tiny kindness game</title>
@@ -56,7 +57,8 @@ function landingHtml(base: string): string {
 body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#faf8f3;color:#2a2a28}
 @media(prefers-color-scheme:dark){body{background:#16150f;color:#ece8df}}
 .card{max-width:520px;padding:40px 28px;text-align:center}
-pre.cat{font-size:13px;line-height:1.15;margin:0 0 8px;color:#c9a227}
+pre.cat{display:inline-block;text-align:left;font-size:15px;line-height:1.15;margin:0 0 10px;color:#c9a227;animation:bob 3.4s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 h1{font-size:28px;margin:.2em 0}
 p.tag{opacity:.85;margin:.2em 0 1.6em}
 .snip{text-align:left;background:#00000010;border:1px solid #00000020;border-radius:12px;padding:16px;font-size:14px}
@@ -66,16 +68,30 @@ button{margin-top:12px;border:0;border-radius:999px;padding:10px 18px;font-size:
 button:active{transform:translateY(1px)}
 .fine{opacity:.6;font-size:13px;margin-top:18px}
 </style></head><body><div class=card>
-<pre class=cat> /\\_/\\
+<pre class=cat id=cat> /\\_/\\
 ( =^.^= )
  (")_(")</pre>
+<div id=frames hidden><pre> /\\_/\\
+( =^.^= )
+ (")_(")</pre><pre> /\\_/\\
+( =-.-= )
+ (")_(")</pre><pre> /\\_/\\ /
+( =^.^= )
+ (")_(")</pre><pre> /\\_/\\ \\
+( =^.^= )
+ (")_(")</pre></div>
 <h1>maneki</h1>
-<p class=tag>a tiny kindness game at Edge Esmeralda 🐾<br>your agent nudges you to make a stranger's day, and someone makes yours.</p>
+<p class=tag>a tiny kindness game at Edge Esmeralda<br>your agent nudges you to make a stranger's day, and someone makes yours.</p>
 <div class=snip><code id=s>${snippet}</code></div>
 <button id=b>copy</button>
 <p class=fine>Paste that to your personal AI agent. It does the rest.<br>No app, no signup form.</p>
 </div>
-<script>document.getElementById('b').onclick=function(){navigator.clipboard.writeText(document.getElementById('s').innerText).then(()=>{this.innerText='copied ✓'})}</script>
+<script>
+var fr=[].map.call(document.querySelectorAll('#frames pre'),function(p){return p.textContent});
+var seq=[[0,1700],[1,140],[0,900],[2,280],[3,280],[2,280],[3,280],[0,1300]],i=0,el=document.getElementById('cat');
+(function t(){var s=seq[i%seq.length];el.textContent=fr[s[0]];i++;setTimeout(t,s[1])})();
+document.getElementById('b').onclick=function(){navigator.clipboard.writeText(document.getElementById('s').innerText).then(()=>{this.innerText='copied ✓'})};
+</script>
 </body></html>`;
 }
 
