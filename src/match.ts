@@ -62,13 +62,12 @@ export function runMatch(store: Store, presence: EventPresence[], now = Date.now
       names.has(nameKey(p.edgeosName)) && !store.hasOpenPairing(p.id) && !store.hasDeclined(p.id, event.id)
     );
     if (here.length < 2) continue;
-    // those most "owed" (gave more than they've received) get placed to receive sooner
+    // No cycle: just make individual gifts, pairing people two-by-two. One gives to
+    // the other this round; roles balance out over time on their own.
     here.sort((a, b) => (b.given - b.received) - (a.given - a.received));
-    const n = here.length;
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i + 1 < here.length; i += 2) {
       const giver = here[i];
-      const receiver = here[(i + 1) % n];
-      if (giver.id === receiver.id) continue;
+      const receiver = here[i + 1];
       const pairing: Pairing = {
         id: store.newId("g"),
         giver: giver.id,

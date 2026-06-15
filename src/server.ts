@@ -57,7 +57,7 @@ function landingHtml(base: string): string {
 body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#faf8f3;color:#2a2a28}
 @media(prefers-color-scheme:dark){body{background:#16150f;color:#ece8df}}
 .card{max-width:520px;padding:40px 28px;text-align:center}
-pre.cat{display:inline-block;text-align:left;font-size:15px;line-height:1.15;margin:0 0 10px;color:#c9a227;animation:bob 3.4s ease-in-out infinite}
+pre.cat{text-align:center;font-size:15px;line-height:1.15;margin:0 0 10px;color:#c9a227;animation:bob 3.4s ease-in-out infinite}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 h1{font-size:28px;margin:.2em 0}
 p.tag{opacity:.85;margin:.2em 0 1.6em}
@@ -68,14 +68,14 @@ button{margin-top:12px;border:0;border-radius:999px;padding:10px 18px;font-size:
 button:active{transform:translateY(1px)}
 .fine{opacity:.6;font-size:13px;margin-top:18px}
 </style></head><body><div class=card>
-<pre class=cat id=cat> /\\_/\\
+<pre class=cat id=cat>/\\___/\\
 ( =^.^= )
- (")_(")</pre>
-<div id=frames hidden><pre> /\\_/\\
+(")_(")</pre>
+<div id=frames hidden><pre>/\\___/\\
 ( =^.^= )
- (")_(")</pre><pre> /\\_/\\
+(")_(")</pre><pre>/\\___/\\
 ( =-.-= )
- (")_(")</pre></div>
+(")_(")</pre></div>
 <h1>maneki</h1>
 <p class=tag>a tiny kindness game at Edge Esmeralda<br>your agent nudges you to make a stranger's day, and someone makes yours.</p>
 <div class=snip><code id=s>${snippet}</code></div>
@@ -205,6 +205,13 @@ const server = createServer(async (req, res) => {
         for (const pr of store.openPairings()) if ((pr.giver === pl.id || pr.receiver === pl.id) && store.hasDeclined(pl.id, pr.eventId)) pr.status = "lapsed";
         store.persist();
         return json(res, 200, { ok: true, declinedEvents: n });
+      }
+      if (method === "POST" && path === "/admin/clear-pairings") {
+        // Lapse all open pairings (no declines) for a clean re-match.
+        let n = 0;
+        for (const pr of store.openPairings()) { pr.status = "lapsed"; n++; }
+        store.persist();
+        return json(res, 200, { ok: true, lapsed: n });
       }
       if (method === "GET" && path === "/admin/state")
         return json(res, 200, { players: store.players(), pairings: store.pairings(), flags: store.flags() });

@@ -28,19 +28,16 @@ function manualPairing(store: Store, giver: string, receiver: string, endsAt: st
 const future = () => new Date(Date.now() + 2 * 3600_000).toISOString();
 
 describe("matcher", () => {
-  it("forms a balanced cycle from co-present, free players: each gives once and receives once", () => {
+  it("pairs co-present players into individual gifts (no cycle, nobody double-booked)", () => {
     const store = freshStore();
-    const names = ["Sylve", "Timour", "Talamon"];
+    const names = ["Aa Aa", "Bb Bb", "Cc Cc", "Dd Dd"];
     names.forEach((n) => store.join(n.toLowerCase(), n));
     runMatch(store, presence(names, future(), future()), Date.now());
     const ps = store.pairings();
-    expect(ps).toHaveLength(3);
+    expect(ps).toHaveLength(2); // 4 players -> 2 individual gifts
     expect(ps.every((p) => p.giver !== p.receiver)).toBe(true);
-    const givers = ps.map((p) => p.giver).sort();
-    const receivers = ps.map((p) => p.receiver).sort();
-    const ids = store.players().map((p) => p.id).sort();
-    expect(givers).toEqual(ids);
-    expect(receivers).toEqual(ids);
+    const seen = ps.flatMap((p) => [p.giver, p.receiver]);
+    expect(new Set(seen).size).toBe(seen.length); // each person in at most one pairing
   });
 
   it("never double-books a player already in an open pairing", () => {
