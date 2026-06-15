@@ -163,7 +163,15 @@ const DIR_PATH = resolve(process.cwd(), "directory.local.md");
   store.reload();
   // Attendee directory is PII: pulled from the private bucket at boot, never the
   // repo. Powers name lookup for the post-gift handle reveal.
-  if (await downloadObject(DIR_OBJECT, DIR_PATH)) { loadDirectory(DIR_PATH); console.log(`[directory] loaded ${directorySize()} attendees`); }
+  if (await downloadObject(DIR_OBJECT, DIR_PATH)) {
+    loadDirectory(DIR_PATH);
+    // Backfill telegram for anyone who joined before the directory existed, so the
+    // post-gift reveal has a handle to offer.
+    let filled = 0;
+    for (const pl of store.players()) if (!pl.telegram) { const tg = telegramFor(pl.edgeosName); if (tg) { pl.telegram = tg; filled++; } }
+    if (filled) store.persist();
+    console.log(`[directory] loaded ${directorySize()} attendees, backfilled ${filled} handles`);
+  }
   server.listen(PORT, () => console.log(`maneki coordinator on :${PORT} (tick ${TICK_MIN}m, skill v${SKILL_VERSION})`));
   setInterval(() => { tick().catch(() => {}); }, TICK_MIN * 60_000);
   setTimeout(() => { tick().catch(() => {}); }, 4000);
