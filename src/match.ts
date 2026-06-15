@@ -48,8 +48,9 @@ export function runMatch(store: Store, presence: EventPresence[], now = Date.now
   });
   // a catch-all "around The Hub today" bucket so two floaters can still meet
   if (floaters.length >= 2) {
+    const day = new Date(now).toISOString().slice(0, 10); // date-scoped, so a "not today" skip doesn't block tomorrow
     augmented.push({
-      event: { id: "hub-daytime", title: "The Hub", startsAt: new Date(now).toISOString(), endsAt: new Date(now + 8 * 3600_000).toISOString(), venue: "The Hub", location: "" },
+      event: { id: `hub-${day}`, title: "The Hub", startsAt: new Date(now).toISOString(), endsAt: new Date(now + 8 * 3600_000).toISOString(), venue: "The Hub", location: "" },
       names: new Set(floaters),
     });
   }
