@@ -75,10 +75,6 @@ button:active{transform:translateY(1px)}
 ( =^.^= )
  (")_(")</pre><pre> /\\_/\\
 ( =-.-= )
- (")_(")</pre><pre> /\\_/\\ /
-( =^.^= )
- (")_(")</pre><pre> /\\_/\\ \\
-( =^.^= )
  (")_(")</pre></div>
 <h1>maneki</h1>
 <p class=tag>a tiny kindness game at Edge Esmeralda<br>your agent nudges you to make a stranger's day, and someone makes yours.</p>
@@ -88,7 +84,7 @@ button:active{transform:translateY(1px)}
 </div>
 <script>
 var fr=[].map.call(document.querySelectorAll('#frames pre'),function(p){return p.textContent});
-var seq=[[0,1700],[1,140],[0,900],[2,280],[3,280],[2,280],[3,280],[0,1300]],i=0,el=document.getElementById('cat');
+var seq=[[0,2600],[1,160]],i=0,el=document.getElementById('cat');
 (function t(){var s=seq[i%seq.length];el.textContent=fr[s[0]];i++;setTimeout(t,s[1])})();
 document.getElementById('b').onclick=function(){navigator.clipboard.writeText(document.getElementById('s').innerText).then(()=>{this.innerText='copied ✓'})};
 </script>
