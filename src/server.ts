@@ -206,6 +206,29 @@ const server = createServer(async (req, res) => {
         store.persist();
         return json(res, 200, { ok: true, declinedEvents: n });
       }
+      if (method === "POST" && path === "/admin/gift") {
+        // Force a specific gift between two players (frees both from any current
+        // pairing first). For operator-arranged kindnesses.
+        const b = await readBody(req);
+        const g = store.players().find((x) => x.edgeosName.toLowerCase() === String(b.giver ?? "").toLowerCase());
+        const r = store.players().find((x) => x.edgeosName.toLowerCase() === String(b.receiver ?? "").toLowerCase());
+        if (!g || !r || g.id === r.id) return json(res, 400, { error: "need a distinct giver and receiver" });
+        for (const pr of store.openPairings()) if ([pr.giver, pr.receiver].includes(g.id) || [pr.giver, pr.receiver].includes(r.id)) pr.status = "lapsed";
+        const now = Date.now();
+        store.addPairing({
+          id: store.newId("g"), giver: g.id, receiver: r.id,
+          eventId: `manual-${store.newId("e")}`, eventTitle: String(b.eventTitle ?? "The Hub"),
+          venue: b.venue ? String(b.venue) : "The Hub",
+          at: new Date(now).toISOString(), endsAt: new Date(now + 8 * 3600_000).toISOString(),
+          gift: String(b.gift ?? "bring them a snack"), codeword: "the cat sent me",
+          identifier: b.identifier ? String(b.identifier) : undefined,
+          receiverReady: b.ready !== undefined ? !!b.ready : false,
+          giverAccepted: false, giverDone: false, receiverConfirmed: false,
+          status: "open", createdAt: now,
+        });
+        store.persist();
+        return json(res, 200, { ok: true, gift: `${g.edgeosName} -> ${r.edgeosName}` });
+      }
       if (method === "POST" && path === "/admin/pairing-override") {
         // Operator knows a real-world detail (e.g. "the receiver is at the Loft booth").
         // Set the meeting place / how-to-find / attendance on an open pairing.
