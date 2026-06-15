@@ -34,11 +34,12 @@ export function pollFor(store: Store, p: Player, now: number = Date.now()): Poll
   if (p.status === "left") return { role: "idle", stage: "idle" };
   const gp = store.giverPairing(p.id);
   const rp = store.receiverPairing(p.id);
-  // give: go — once the event is imminent or live AND the receiver has confirmed
-  // they'll actually be there (EdgeOS RSVPs over-report recurring events, so a
-  // confirmation is required before we send anyone). The receiver's name is always
-  // included so the giver can find them; `find` (a self-description) is a bonus.
-  if (gp && gp.giverAccepted && gp.receiverReady && minsUntil(gp.at, now) <= GO_LEAD_MIN) {
+  // give: go — once the event is imminent or live. We do NOT wait on the receiver:
+  // they may be offline, and the giver can find them by name. If the receiver did
+  // confirm and describe themselves, `find` carries it as a bonus. (An active
+  // receiver who isn't coming declines, which lapses the pairing, so it never
+  // reaches here.)
+  if (gp && gp.giverAccepted && minsUntil(gp.at, now) <= GO_LEAD_MIN) {
     const receiver = store.player(gp.receiver);
     return { role: "give", stage: "go", gift: gp.gift, who: receiver?.edgeosName, find: gp.identifier, codeword: gp.codeword, venue: gp.venue, at: gp.at, event: gp.eventTitle };
   }

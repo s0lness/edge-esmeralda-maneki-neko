@@ -47,10 +47,22 @@ export function runMatch(store: Store, presence: EventPresence[], now = Date.now
     created.push(pairing);
   };
 
+  // A giver must be live (their agent will actually surface the prompt). A receiver
+  // can be offline: the giver still gets sent, finds them by name. "Live" = seen
+  // within 2h, using last poll, or join time if they have never polled yet.
+  const LIVE_WINDOW_MS = 120 * 60_000;
+  const isLive = (p: Player) => now - (p.lastPollAt ?? p.joinedAt) < LIVE_WINDOW_MS;
   const pairPool = (players: Player[], event: EdgeEvent) => {
     const here = players.filter((p) => !store.hasOpenPairing(p.id) && !store.hasDeclined(p.id, event.id));
     here.sort((a, b) => (b.given - b.received) - (a.given - a.received));
-    for (let i = 0; i + 1 < here.length; i += 2) make(here[i], here[i + 1], event);
+    const used = new Set<string>();
+    for (const giver of here) {
+      if (used.has(giver.id) || !isLive(giver)) continue;          // only a live agent can give
+      const receiver = here.find((p) => p.id !== giver.id && !used.has(p.id)); // receiver may be offline
+      if (!receiver) break;
+      used.add(giver.id); used.add(receiver.id);
+      make(giver, receiver, event);
+    }
   };
 
   // pass 1: real events, soonest first

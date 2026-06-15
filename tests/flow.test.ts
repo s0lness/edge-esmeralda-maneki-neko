@@ -146,24 +146,50 @@ describe("lead-time gating", () => {
     expect(pollFor(store, a, tenBefore)).toMatchObject({ role: "give", stage: "go", find: "red scarf" });
   });
 
-  it("gives the go by the receiver's name even when they never described themselves", () => {
+  it("sends the giver by the receiver's name even if the receiver never confirmed (may be offline)", () => {
     const store = freshStore();
     const a = store.join("alice", "Alice");
     const b = store.join("bob", "Bob Smith");
     const pab = manualPairing(store, a.id, b.id, future(), 5); // imminent
-    pab.giverAccepted = true; pab.receiverReady = true; store.persist(); // confirmed attending, no description
+    pab.giverAccepted = true; store.persist(); // receiver has NOT confirmed (could be offline)
     const go = pollFor(store, a);
     expect(go).toMatchObject({ role: "give", stage: "go", who: "Bob Smith" });
     expect(go.find).toBeUndefined();
   });
 
-  it("never sends the giver until the receiver has confirmed they'll be there", () => {
+  it("uses the receiver's description in the go when they did confirm one", () => {
     const store = freshStore();
     const a = store.join("alice", "Alice");
     const b = store.join("bob", "Bob");
-    const pab = manualPairing(store, a.id, b.id, future(), 5); // imminent
-    pab.giverAccepted = true; store.persist(); // giver ready, but receiver has NOT confirmed
-    expect(pollFor(store, a)).toMatchObject({ role: "idle" }); // held: no go
+    const pab = manualPairing(store, a.id, b.id, future(), 5);
+    pab.giverAccepted = true; pab.receiverReady = true; pab.identifier = "green cap"; store.persist();
+    expect(pollFor(store, a)).toMatchObject({ role: "give", stage: "go", find: "green cap" });
+  });
+});
+
+describe("liveness (giver must be live, receiver can be offline)", () => {
+  it("won't make a stale-agent player a giver, but will pair a live giver to an offline receiver", () => {
+    const store = freshStore();
+    const live = store.join("live", "Live One");
+    const stale = store.join("stale", "Stale One");
+    const now = Date.now();
+    live.lastPollAt = now;
+    stale.lastPollAt = now - 5 * 3600_000; // 5h ago: stale
+    store.persist();
+    runMatch(store, presence(["Live One", "Stale One"], future(), future()), now);
+    const ps = store.openPairings();
+    expect(ps).toHaveLength(1);
+    expect(ps[0].giver).toBe(live.id);     // the live one gives
+    expect(ps[0].receiver).toBe(stale.id); // the offline one receives
+  });
+
+  it("makes no pairing when nobody is live to give", () => {
+    const store = freshStore();
+    const now = Date.now();
+    for (const n of ["A A", "B B"]) { const p = store.join(n.toLowerCase(), n); p.lastPollAt = now - 5 * 3600_000; }
+    store.persist();
+    runMatch(store, presence(["A A", "B B"], future(), future()), now);
+    expect(store.openPairings()).toHaveLength(0);
   });
 });
 
