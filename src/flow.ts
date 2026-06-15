@@ -4,6 +4,7 @@ export interface Poll {
   role: "give" | "receive" | "reveal" | "idle";
   stage: string;
   gift?: string;
+  who?: string;        // receiver's name, so the giver can find them even with no description
   find?: string;
   codeword?: string;
   venue?: string;
@@ -33,9 +34,13 @@ export function pollFor(store: Store, p: Player, now: number = Date.now()): Poll
   if (p.status === "left") return { role: "idle", stage: "idle" };
   const gp = store.giverPairing(p.id);
   const rp = store.receiverPairing(p.id);
-  // give: go — only once the event is imminent or live
-  if (gp && gp.giverAccepted && gp.identifier && minsUntil(gp.at, now) <= GO_LEAD_MIN)
-    return { role: "give", stage: "go", gift: gp.gift, find: gp.identifier, codeword: gp.codeword, venue: gp.venue, at: gp.at, event: gp.eventTitle };
+  // give: go — once the event is imminent or live. The receiver's name is always
+  // included so the giver can find them even if they never described themselves;
+  // `find` (a self-description) is a bonus when present.
+  if (gp && gp.giverAccepted && minsUntil(gp.at, now) <= GO_LEAD_MIN) {
+    const receiver = store.player(gp.receiver);
+    return { role: "give", stage: "go", gift: gp.gift, who: receiver?.edgeosName, find: gp.identifier, codeword: gp.codeword, venue: gp.venue, at: gp.at, event: gp.eventTitle };
+  }
   // receive: prime — within the offer lead, so they have time to answer
   if (rp && !rp.identifier && minsUntil(rp.at, now) <= OFFER_LEAD_MIN)
     return { role: "receive", stage: "prime", venue: rp.venue, at: rp.at, event: rp.eventTitle };

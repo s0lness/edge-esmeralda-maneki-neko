@@ -148,4 +148,15 @@ describe("lead-time gating", () => {
     const tenBefore = Date.now() + 80 * 60_000; // poll 10 min before start
     expect(pollFor(store, a, tenBefore)).toMatchObject({ role: "give", stage: "go", find: "red scarf" });
   });
+
+  it("gives the go by the receiver's name even when they never described themselves", () => {
+    const store = freshStore();
+    const a = store.join("alice", "Alice");
+    const b = store.join("bob", "Bob Smith");
+    const pab = manualPairing(store, a.id, b.id, future(), 5); // imminent
+    pab.giverAccepted = true; store.persist(); // accepted, but no identifier ever provided
+    const go = pollFor(store, a);
+    expect(go).toMatchObject({ role: "give", stage: "go", who: "Bob Smith" });
+    expect(go.find).toBeUndefined();
+  });
 });
