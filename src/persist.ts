@@ -46,6 +46,25 @@ export async function restore(localPath: string): Promise<boolean> {
   }
 }
 
+/** Download an arbitrary object from the bucket to a local file (read-only data
+ *  like the attendee directory). Returns true if it landed. */
+export async function downloadObject(object: string, localPath: string): Promise<boolean> {
+  if (!BUCKET) return false;
+  const token = await gcpToken();
+  if (!token) return false;
+  try {
+    const r = await fetch(
+      `https://storage.googleapis.com/storage/v1/b/${BUCKET}/o/${encodeURIComponent(object)}?alt=media`,
+      { headers: { authorization: `Bearer ${token}` } },
+    );
+    if (!r.ok) return false;
+    writeFileSync(localPath, await r.text());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 let timer: NodeJS.Timeout | null = null;
 
 /** Debounced upload of the local db file. Call after every save. */

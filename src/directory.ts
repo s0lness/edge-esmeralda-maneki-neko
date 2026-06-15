@@ -27,3 +27,13 @@ export function loadDirectory(file = process.env.DIRECTORY_FILE): Map<string, st
 export function telegramFor(name: string): string | undefined {
   return loadDirectory().get(nameKey(name));
 }
+
+export function directorySize(): number {
+  return loadDirectory().size;
+}
+
+/** A plausible full name: at least two word-tokens that carry real letters.
+ *  Rejects lone first names / nicknames ("Chase") that can't be placed at events. */
+export function isFullName(name: string): boolean {
+  return String(name).trim().split(/\s+/).filter((t) => t.replace(/[^A-Za-z]/g, "").length >= 2).length >= 2;
+}

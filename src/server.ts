@@ -6,10 +6,11 @@ import { createServer, type ServerResponse, type IncomingMessage } from "node:ht
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Store } from "./state.ts";
+import { nameKey } from "./edgeos.ts";
 import { buildPresence, runMatch, expireStale, type EventPresence } from "./match.ts";
 import { pollFor, lapseAll } from "./flow.ts";
-import { telegramFor } from "./directory.ts";
-import { restore } from "./persist.ts";
+import { telegramFor, isFullName, loadDirectory, directorySize } from "./directory.ts";
+import { restore, downloadObject } from "./persist.ts";
 
 // local .env loader (no-op on Cloud Run, where env comes from the platform)
 if (existsSync(".env")) {
@@ -80,9 +81,17 @@ const server = createServer(async (req, res) => {
     if (method === "POST" && path === "/join") {
       const b = await readBody(req);
       if (!b.handle || !b.edgeosName) return json(res, 400, { error: "handle and edgeosName required" });
-      const p = store.join(String(b.handle), String(b.edgeosName), b.preferences);
+      const edgeName = String(b.edgeosName).trim();
+      // A lone first name / nickname can't be placed at events (this is the "Chase"
+      // failure). Require a real full name and let the agent re-ask.
+      if (!isFullName(edgeName))
+        return json(res, 422, { ok: false, reason: "need_full_name", message: "I need your full name exactly as it appears in Edge (first and last) so I can find you at events." });
+      const p = store.join(String(b.handle), edgeName, b.preferences);
       const tg = telegramFor(p.edgeosName); if (tg && !p.telegram) { p.telegram = tg; store.persist(); }
-      return json(res, 200, { token: p.token });
+      // Are they RSVP'd to anything we can match on? If not, the agent nudges them.
+      await refreshPresence();
+      const rsvp = presence.some((ep) => ep.names.has(nameKey(p.edgeosName)));
+      return json(res, 200, { token: p.token, rsvp });
     }
 
     const tokenPosts = ["/accept", "/identifier", "/done", "/confirm", "/reveal", "/skip", "/leave", "/flag"];
@@ -147,9 +156,14 @@ const server = createServer(async (req, res) => {
 // Boot: pull any GCS snapshot into the local file BEFORE serving, so a fresh Cloud
 // Run instance comes up with the saved players + ledger instead of empty.
 const DB_PATH = resolve(process.cwd(), process.env.MANEKI_DB ?? "maneki.db.json");
+const DIR_OBJECT = process.env.MANEKI_DIRECTORY_OBJECT ?? "directory.md";
+const DIR_PATH = resolve(process.cwd(), "directory.local.md");
 (async () => {
   await restore(DB_PATH);
   store.reload();
+  // Attendee directory is PII: pulled from the private bucket at boot, never the
+  // repo. Powers name lookup for the post-gift handle reveal.
+  if (await downloadObject(DIR_OBJECT, DIR_PATH)) { loadDirectory(DIR_PATH); console.log(`[directory] loaded ${directorySize()} attendees`); }
   server.listen(PORT, () => console.log(`maneki coordinator on :${PORT} (tick ${TICK_MIN}m, skill v${SKILL_VERSION})`));
   setInterval(() => { tick().catch(() => {}); }, TICK_MIN * 60_000);
   setTimeout(() => { tick().catch(() => {}); }, 4000);
