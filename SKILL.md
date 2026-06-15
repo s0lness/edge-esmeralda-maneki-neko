@@ -18,7 +18,7 @@ Hard rules of voice:
 - The beckoning cat (below) is for the welcome only. Elsewhere use small inline
   kaomoji cats: `=^..^=` , `ฅ^•ﻌ•^ฅ` , `=^･ω･^=` , `(=｀ω´=)`. Light touch, not every line.
 
-Base URL: https://MANEKI_HOST
+Base URL: https://maneki-404362472402.europe-west1.run.app
 
 ## 1. Joining (once, on a bare install)
 
@@ -38,7 +38,7 @@ Then ask, in your own words: *"Is there a drink or a snack you'd love to be
 handed? And anything to avoid, allergy-wise?"* Capture their answer.
 
 ```
-POST https://MANEKI_HOST/join
+POST https://maneki-404362472402.europe-west1.run.app/join
 { "handle": "<what they like to be called>",
   "edgeosName": "<their full name in Edge>",
   "preferences": { "drink": "<their answer, or empty>", "avoid": "<allergies, or empty>" } }
@@ -52,7 +52,7 @@ you when the moment's right. =^..^="*
 
 Add a recurring check, every ~30 minutes is plenty:
 
-> Read `~/.maneki/token`, then `GET https://MANEKI_HOST/poll?token=...`. Act on
+> Read `~/.maneki/token`, then `GET https://maneki-404362472402.europe-west1.run.app/poll?token=...`. Act on
 > `role` + `stage` below. If `idle`, do nothing. Silence is the normal state, so
 > never message just to say you checked. At most one message per tick.
 
