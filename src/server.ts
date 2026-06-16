@@ -39,9 +39,25 @@ async function refreshPresence(maxAgeMs = 10 * 60_000) {
   if (presence.length && now - presenceAt < maxAgeMs) return;
   try { presence = await buildPresence(); presenceAt = now; } catch { /* keep stale */ }
 }
+// At ~23:00 Pacific (Edge's timezone; PDT = UTC-7 in May/June), wipe the day's
+// unsettled projected pairings and re-plan. Settled gifts stay (the ledger they
+// built persists), so the re-plan rebalances: who received is now first to give.
+function nightlyReset() {
+  const pt = new Date(Date.now() - 7 * 3600_000);
+  if (pt.getUTCHours() < 23) return;                 // only at/after 11pm PT
+  const day = pt.toISOString().slice(0, 10);
+  if (store.meta("lastResetDate") === day) return;   // already reset tonight
+  let n = 0;
+  for (const pr of store.openPairings()) { pr.status = "lapsed"; n++; }
+  store.setMeta("lastResetDate", day);
+  store.persist();
+  console.log(`[reset] nightly re-plan for ${day}: lapsed ${n} open pairings`);
+}
+
 async function tick() {
   await refreshPresence();
   expireStale(store);
+  nightlyReset();
   runMatch(store, presence);
 }
 

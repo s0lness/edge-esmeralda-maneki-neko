@@ -216,6 +216,21 @@ describe("hub fallback (no-RSVP floaters)", () => {
   });
 });
 
+describe("ledger balance (received -> give next)", () => {
+  it("makes the one who received the giver, and the one who gave the receiver", () => {
+    const store = freshStore();
+    const now = Date.now();
+    const a = store.join("a", "A Aa"); a.received = 2; a.given = 0; a.lastPollAt = now; // received -> should give
+    const b = store.join("b", "B Bb"); b.given = 2; b.received = 0; b.lastPollAt = now;  // gave -> should receive
+    store.persist();
+    runMatch(store, presence(["A Aa", "B Bb"], future(), future()), now);
+    const op = store.openPairings();
+    expect(op).toHaveLength(1);
+    expect(op[0].giver).toBe(a.id);
+    expect(op[0].receiver).toBe(b.id);
+  });
+});
+
 describe("declined events (recurring-RSVP guard)", () => {
   it("skip records a decline so the matcher won't re-pair them at that event", () => {
     const store = freshStore();

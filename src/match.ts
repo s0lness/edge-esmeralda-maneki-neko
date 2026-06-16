@@ -54,11 +54,15 @@ export function runMatch(store: Store, presence: EventPresence[], now = Date.now
   const isLive = (p: Player) => now - (p.lastPollAt ?? p.joinedAt) < LIVE_WINDOW_MS;
   const pairPool = (players: Player[], event: EdgeEvent) => {
     const here = players.filter((p) => !store.hasOpenPairing(p.id) && !store.hasDeclined(p.id, event.id));
-    here.sort((a, b) => (b.given - b.received) - (a.given - a.received));
+    // Ledger-balanced: a live player who has received more than given is first in line
+    // to GIVE; whoever is most owed (gave more than received) is first to RECEIVE. So
+    // "you received, now you give" falls out naturally over days.
+    const givers = here.filter(isLive).sort((a, b) => (b.received - b.given) - (a.received - a.given));
+    const receivers = [...here].sort((a, b) => (b.given - b.received) - (a.given - a.received));
     const used = new Set<string>();
-    for (const giver of here) {
-      if (used.has(giver.id) || !isLive(giver)) continue;          // only a live agent can give
-      const receiver = here.find((p) => p.id !== giver.id && !used.has(p.id)); // receiver may be offline
+    for (const giver of givers) {
+      if (used.has(giver.id)) continue;
+      const receiver = receivers.find((p) => p.id !== giver.id && !used.has(p.id)); // receiver may be offline
       if (!receiver) break;
       used.add(giver.id); used.add(receiver.id);
       make(giver, receiver, event);

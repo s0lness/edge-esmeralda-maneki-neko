@@ -61,7 +61,7 @@ export interface Ring {
   status: "open" | "closed" | "stalled"; createdAt: number; closedAt?: number;
 }
 
-interface Data { players: Player[]; rings: Ring[]; pairings: Pairing[]; flags: Flag[]; declines: string[]; seq: number }
+interface Data { players: Player[]; rings: Ring[]; pairings: Pairing[]; flags: Flag[]; declines: string[]; meta: Record<string, string>; seq: number }
 
 export class Store {
   private path: string;
@@ -71,7 +71,7 @@ export class Store {
     this.data = this.read();
   }
   private read(): Data {
-    const fresh: Data = { players: [], rings: [], pairings: [], flags: [], declines: [], seq: 1 };
+    const fresh: Data = { players: [], rings: [], pairings: [], flags: [], declines: [], meta: {}, seq: 1 };
     return existsSync(this.path) ? { ...fresh, ...JSON.parse(readFileSync(this.path, "utf8")) } : fresh;
   }
   /** Re-read from the local file. Call after a boot-time GCS restore overwrote it. */
@@ -135,6 +135,10 @@ export class Store {
     if (!this.data.declines.includes(key)) { this.data.declines.push(key); this.save(); }
   }
   hasDeclined(playerId: string, eventId: string) { return this.data.declines.includes(`${playerId}|${eventId}`); }
+
+  // small key/value store (e.g. the last nightly-reset date)
+  meta(k: string) { return this.data.meta?.[k]; }
+  setMeta(k: string, v: string) { (this.data.meta ??= {})[k] = v; this.save(); }
 
   // legacy rings
   addRing(r: Ring) { this.data.rings.push(r); this.save(); }
