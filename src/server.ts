@@ -76,7 +76,7 @@ function creditGift(pr: { giver: string; receiver: string; credited?: boolean })
 function manekiPollScript(base: string): string {
   return `#!/usr/bin/env python3
 # maneki notifier. Run as a no_agent scheduled task (~every 15 min) with deliver:origin,
-# so stdout goes straight to your human. No LLM cost. Do not edit; re-download to update.
+# so stdout goes straight to your human. No LLM cost. Fetched and run fresh each tick.
 import json, os, urllib.request, urllib.error
 
 BASE = "${base}"
