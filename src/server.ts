@@ -68,22 +68,42 @@ function manekiPollScript(base: string): string {
   return `#!/usr/bin/env python3
 # maneki notifier. Run as a no_agent scheduled task (~every 15 min) with deliver:origin,
 # so stdout goes straight to your human. No LLM cost. Do not edit; re-download to update.
-import json, os, urllib.request
+import json, os, urllib.request, urllib.error
 
 BASE = "${base}"
 TOKEN = os.path.expanduser("~/.maneki/token")
 LAST = os.path.expanduser("~/.maneki/last-nudge")
+
+def emit(out):
+    if not out:
+        return
+    try:
+        if open(LAST).read() == out:
+            return  # same as last time: don't repeat
+    except Exception:
+        pass
+    try:
+        open(LAST, "w").write(out)
+    except Exception:
+        pass
+    print(out)
 
 def run():
     try:
         token = open(TOKEN).read().strip()
     except Exception:
         return
+    if not token:
+        return
     try:
         with urllib.request.urlopen(BASE + "/poll?token=" + token, timeout=15) as r:
             d = json.load(r)
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            emit("maneki can't recognize you (your link may have expired). Tell me 'play maneki' to reconnect.")
+        return  # other HTTP errors: stay silent
     except Exception:
-        return  # network hiccup: stay silent, never print an error
+        return  # transient network issue: stay silent
     role, stage = d.get("role"), d.get("stage")
     if not role or role == "idle":
         return
@@ -101,19 +121,7 @@ def run():
         ("reveal", "offer-handle"): "That little gift landed. Want me to share handles so you two can stay in touch? Reply yes or no.",
     }.get((role, stage))
     news = d.get("news")
-    out = "\\n".join(x for x in [msg, news] if x)
-    if not out:
-        return
-    try:
-        if open(LAST).read() == out:
-            return  # same nudge as last time: don't repeat
-    except Exception:
-        pass
-    try:
-        open(LAST, "w").write(out)
-    except Exception:
-        pass
-    print(out)
+    emit("\\n".join(x for x in [msg, news] if x))
 
 run()
 `;
