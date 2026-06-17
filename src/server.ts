@@ -61,6 +61,64 @@ async function tick() {
   runMatch(store, presence);
 }
 
+/** The one canonical background poller, served so agents never hand-write (and break)
+ *  their own. Pure stdlib Python: reads the token, polls, prints ONE warm line only on
+ *  a real, changed nudge; silent on idle and on any error (never spams). */
+function manekiPollScript(base: string): string {
+  return `#!/usr/bin/env python3
+# maneki notifier. Run as a no_agent scheduled task (~every 15 min) with deliver:origin,
+# so stdout goes straight to your human. No LLM cost. Do not edit; re-download to update.
+import json, os, urllib.request
+
+BASE = "${base}"
+TOKEN = os.path.expanduser("~/.maneki/token")
+LAST = os.path.expanduser("~/.maneki/last-nudge")
+
+def run():
+    try:
+        token = open(TOKEN).read().strip()
+    except Exception:
+        return
+    try:
+        with urllib.request.urlopen(BASE + "/poll?token=" + token, timeout=15) as r:
+            d = json.load(r)
+    except Exception:
+        return  # network hiccup: stay silent, never print an error
+    role, stage = d.get("role"), d.get("stage")
+    if not role or role == "idle":
+        return
+    ev = d.get("event", "the event")
+    who = d.get("who", "them")
+    find = d.get("find") or ""
+    code = d.get("codeword", "the cat sent me")
+    gift = d.get("gift", "a little something")
+    spot = (", look for " + find) if find else ""
+    msg = {
+        ("give", "offer"): "Tiny adventure at " + ev + " later, fancy making someone's day? Reply 'yes' and I'll tell you who when it's time. =^..^=",
+        ("give", "go"): "It's on! Find " + who + " at " + ev + spot + ", say '" + code + "', and " + gift + ". Tell me 'done' when you have. =^.^=",
+        ("receive", "prime"): "Psst, someone might have a little something for you at " + ev + ". How will they spot you? (a hat, where you'll be sitting) =^..^=",
+        ("receive", "settle-check"): "Did someone bring you something at " + ev + "? Let me know! =^..^=",
+        ("reveal", "offer-handle"): "That little gift landed. Want me to share handles so you two can stay in touch? Reply yes or no.",
+    }.get((role, stage))
+    news = d.get("news")
+    out = "\\n".join(x for x in [msg, news] if x)
+    if not out:
+        return
+    try:
+        if open(LAST).read() == out:
+            return  # same nudge as last time: don't repeat
+    except Exception:
+        pass
+    try:
+        open(LAST, "w").write(out)
+    except Exception:
+        pass
+    print(out)
+
+run()
+`;
+}
+
 /** A shareable, no-dependency landing page. Forward the URL and anyone can join.
  *  The agent already knows the human's Edge name, so the snippet has no fill-in. */
 function landingHtml(base: string): string {
@@ -136,6 +194,13 @@ const server = createServer(async (req, res) => {
     if (method === "GET" && path === "/skill") {
       res.writeHead(200, { "content-type": "text/markdown; charset=utf-8" });
       res.end(SKILL_TEXT);
+      return;
+    }
+
+    if (method === "GET" && path === "/maneki_poll.py") {
+      const base = `https://${req.headers.host ?? "maneki-404362472402.europe-west1.run.app"}`;
+      res.writeHead(200, { "content-type": "text/x-python; charset=utf-8" });
+      res.end(manekiPollScript(base));
       return;
     }
 
