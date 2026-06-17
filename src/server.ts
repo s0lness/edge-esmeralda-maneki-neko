@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { Store } from "./state.ts";
 import { nameKey } from "./edgeos.ts";
 import { buildPresence, runMatch, expireStale, type EventPresence } from "./match.ts";
-import { pollFor, lapseAll } from "./flow.ts";
+import { pollFor, lapseAll, ptDay } from "./flow.ts";
 import { telegramFor, isFullName, loadDirectory, directorySize } from "./directory.ts";
 import { restore, downloadObject } from "./persist.ts";
 
@@ -125,8 +125,10 @@ def run():
     msg = {
         ("give", "offer"): "Tiny adventure at " + ev + " later, fancy making someone's day? Reply 'yes' and I'll tell you who when it's time. =^..^=",
         ("give", "go"): "It's on! Find " + who + " at " + ev + spot + ", say '" + code + "', and " + gift + ". Tell me 'done' when you have. =^.^=",
+        ("give", "confirm"): "Looks like " + who + " says they got your gift, can you confirm you gave it? Reply 'yes'. =^..^=",
         ("receive", "prime"): "Psst, someone might have a little something for you at " + ev + ". How will they spot you? (a hat, where you'll be sitting) =^..^=",
         ("receive", "settle-check"): "Did someone bring you something at " + ev + "? Let me know! =^..^=",
+        ("describe", "spot"): "Morning! If someone's bringing you a little surprise today, how would they spot you? Tell me what you're wearing, or a lasting feature (tall, red hair). =^..^=",
         ("reveal", "offer-handle"): "That little gift landed. Want me to share handles so you two can stay in touch? Reply yes or no.",
     }.get((role, stage))
     news = d.get("news")
@@ -245,7 +247,7 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { token: p.token, rsvp });
     }
 
-    const tokenPosts = ["/accept", "/identifier", "/done", "/confirm", "/reveal", "/skip", "/leave", "/flag"];
+    const tokenPosts = ["/accept", "/identifier", "/describe", "/done", "/confirm", "/reveal", "/skip", "/leave", "/flag"];
     if (method === "POST" && tokenPosts.includes(path)) {
       const b = await readBody(req);
       const p = store.playerByToken(String(b.token ?? ""));
@@ -253,6 +255,7 @@ const server = createServer(async (req, res) => {
       switch (path) {
         case "/accept": { const gp = store.giverPairing(p.id); if (gp) gp.giverAccepted = true; store.persist(); break; }
         case "/identifier": { const rp = store.receiverPairing(p.id); if (rp) { rp.receiverReady = true; if (b.identifier) rp.identifier = String(b.identifier); } store.persist(); break; }
+        case "/describe": { const spot = String(b.spot ?? b.identifier ?? "").trim(); if (spot) { p.spotId = spot; p.spotKind = b.lasting ? "lasting" : "daily"; p.spotDate = ptDay(Date.now()); } store.persist(); break; }
         case "/done": { const gp = store.giverPairing(p.id); if (gp) { gp.giverDone = true; creditGift(gp); store.trySettle(gp); } store.persist(); break; }
         case "/confirm": { const rp = store.receiverPairing(p.id); if (rp) { rp.receiverConfirmed = true; creditGift(rp); store.trySettle(rp); } store.persist(); break; }
         case "/reveal": {
@@ -386,6 +389,12 @@ const DIR_PATH = resolve(process.cwd(), "directory.local.md");
 (async () => {
   await restore(DB_PATH);
   store.reload();
+  // One-time migration: pairings reported before the `credited` flag existed were already
+  // counted on the ledger under the old per-side scheme. Mark them credited so a late
+  // /done or /confirm can't double-count them.
+  let migrated = 0;
+  for (const pr of store.pairings()) if ((pr.giverDone || pr.receiverConfirmed) && !pr.credited) { pr.credited = true; migrated++; }
+  if (migrated) { store.persist(); console.log(`[migrate] marked ${migrated} pre-existing pairings credited`); }
   // Attendee directory is PII: pulled from the private bucket at boot, never the
   // repo. Powers name lookup for the post-gift handle reveal.
   if (await downloadObject(DIR_OBJECT, DIR_PATH)) {

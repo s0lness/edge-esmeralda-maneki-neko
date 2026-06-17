@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Store, type Pairing } from "../src/state.ts";
 import { runMatch, expireStale, type EventPresence } from "../src/match.ts";
-import { pollFor, lapseAll } from "../src/flow.ts";
+import { pollFor, lapseAll, ptDay } from "../src/flow.ts";
 import { nameKey } from "../src/edgeos.ts";
 
 let dir = "";
@@ -66,7 +66,7 @@ describe("matcher", () => {
 });
 
 describe("gift lifecycle (decoupled settle)", () => {
-  it("walks prime -> offer -> go -> done -> confirm -> reveal, crediting each half independently", () => {
+  it("walks prime -> offer -> go -> done -> confirm -> reveal, counting the gift on the giver's word", () => {
     const store = freshStore();
     const a = store.join("alice", "Alice");
     const b = store.join("bob", "Bob");
@@ -86,33 +86,32 @@ describe("gift lifecycle (decoupled settle)", () => {
     expect(go).toMatchObject({ role: "give", stage: "go", find: "green cap by the fig tree", codeword: "the cat sent me" });
     expect(go.gift).toContain("flat white");
 
-    // giver reports done -> giver credited immediately, no waiting on receiver
-    pab.giverDone = true; a.given++; store.trySettle(pab); store.persist();
+    // giver reports done -> the whole gift is counted at once (giver gives, receiver receives)
+    pab.giverDone = true; pab.credited = true; a.given++; b.received++; store.trySettle(pab); store.persist();
     expect(a.given).toBe(1);
-    expect(pab.status).toBe("open"); // not settled until the other half lands
-    expect(pollFor(store, a)).toMatchObject({ role: "idle" }); // giver now waits
-
-    // receiver gets the settle-check, confirms -> receiver credited, pairing settles
-    expect(pollFor(store, b)).toMatchObject({ role: "receive", stage: "settle-check" });
-    pab.receiverConfirmed = true; b.received++; store.trySettle(pab); store.persist();
     expect(b.received).toBe(1);
-    expect(pab.status).toBe("settled");
+    expect(pab.status).toBe("open"); // counted, but not "settled" until the receiver corroborates
 
-    // reveal: each side is offered the other's handle
+    // the giver can already be revealed; a counted gift never waits on the receiver
     a.telegram = "alice_tg"; b.telegram = "bob_tg"; store.persist();
     expect(pollFor(store, a)).toMatchObject({ role: "reveal", stage: "offer-handle", handle: "bob_tg" });
+
+    // receiver still gets a gentle settle-check; confirming just flips status to settled
+    expect(pollFor(store, b)).toMatchObject({ role: "receive", stage: "settle-check" });
+    pab.receiverConfirmed = true; store.trySettle(pab); store.persist();
+    expect(pab.status).toBe("settled");
     expect(pollFor(store, b)).toMatchObject({ role: "reveal", stage: "offer-handle", handle: "alice_tg" });
   });
 
-  it("credits a one-sided report without stalling (receiver silent)", () => {
+  it("counts a gift in full from the giver's word, even if the receiver stays silent", () => {
     const store = freshStore();
     const a = store.join("alice", "Alice");
     const b = store.join("bob", "Bob");
     const pab = manualPairing(store, a.id, b.id, future());
-    pab.giverDone = true; a.given++; store.trySettle(pab); store.persist();
-    // giver moved forward even though receiver never confirmed
+    pab.giverDone = true; pab.credited = true; a.given++; b.received++; store.trySettle(pab); store.persist();
+    // both sides counted, no confirmation required
     expect(a.given).toBe(1);
-    expect(b.received).toBe(0);
+    expect(b.received).toBe(1);
     expect(pab.status).toBe("open");
   });
 
@@ -121,6 +120,7 @@ describe("gift lifecycle (decoupled settle)", () => {
     const a = store.join("alice", "Alice");
     const b = store.join("bob", "Bob");
     const pab = manualPairing(store, a.id, b.id, future());
+    a.spotKind = "lasting"; a.spotId = "x"; store.persist(); // spot on file, so no morning describe nudge
     lapseAll(store, b.id); // receiver not attending
     expect(pab.status).toBe("lapsed");
     expect(pollFor(store, a)).toMatchObject({ role: "idle" });
@@ -134,6 +134,7 @@ describe("lead-time gating", () => {
     const store = freshStore();
     const a = store.join("alice", "Alice");
     const b = store.join("bob", "Bob");
+    a.spotKind = b.spotKind = "lasting"; a.spotId = b.spotId = "x"; store.persist(); // spots on file
     manualPairing(store, a.id, b.id, future(), 300); // event 5h out, beyond the 3h offer lead
     expect(pollFor(store, a)).toMatchObject({ role: "idle" }); // giver's offer held
     expect(pollFor(store, b)).toMatchObject({ role: "idle" }); // receiver's prime held
@@ -145,6 +146,7 @@ describe("lead-time gating", () => {
     const b = store.join("bob", "Bob");
     const pab = manualPairing(store, a.id, b.id, future(), 90); // within offer lead, not go lead
     pab.giverAccepted = true; pab.receiverReady = true; pab.identifier = "red scarf"; store.persist();
+    a.spotKind = "lasting"; a.spotId = "x"; store.persist(); // spot on file, isolate go timing
     expect(pollFor(store, a)).toMatchObject({ role: "idle" }); // go held (90 min > 20)
     const tenBefore = Date.now() + 80 * 60_000; // poll 10 min before start
     expect(pollFor(store, a, tenBefore)).toMatchObject({ role: "give", stage: "go", find: "red scarf" });
@@ -168,6 +170,42 @@ describe("lead-time gating", () => {
     const pab = manualPairing(store, a.id, b.id, future(), 5);
     pab.giverAccepted = true; pab.receiverReady = true; pab.identifier = "green cap"; store.persist();
     expect(pollFor(store, a)).toMatchObject({ role: "give", stage: "go", find: "green cap" });
+  });
+
+  it("asks the giver to corroborate when the receiver confirmed first", () => {
+    const store = freshStore();
+    const a = store.join("alice", "Alice");
+    const b = store.join("bob", "Bob Smith");
+    const pab = manualPairing(store, a.id, b.id, future(), 5);
+    pab.giverAccepted = true; pab.receiverConfirmed = true; store.persist(); // receiver said they got it first
+    expect(pollFor(store, a)).toMatchObject({ role: "give", stage: "confirm", who: "Bob Smith" });
+  });
+
+  it("asks an idle player how to be spotted, then stops once they give a lasting feature", () => {
+    const store = freshStore();
+    const a = store.join("alice", "Alice");
+    expect(pollFor(store, a)).toMatchObject({ role: "describe", stage: "spot" }); // nothing on file
+    a.spotKind = "lasting"; a.spotId = "tall, red hair"; store.persist();
+    expect(pollFor(store, a)).toMatchObject({ role: "idle" }); // kept for good, never re-asked
+  });
+
+  it("re-asks for an outfit on a new day but leaves today's answer alone", () => {
+    const store = freshStore();
+    const a = store.join("alice", "Alice");
+    a.spotKind = "daily"; a.spotId = "blue jacket"; a.spotDate = ptDay(Date.now()); store.persist();
+    expect(pollFor(store, a)).toMatchObject({ role: "idle" }); // fresh today
+    a.spotDate = "2000-01-01"; store.persist();
+    expect(pollFor(store, a)).toMatchObject({ role: "describe", stage: "spot" }); // stale -> re-ask
+  });
+
+  it("uses the receiver's stored spot in the go without a per-gift description", () => {
+    const store = freshStore();
+    const a = store.join("alice", "Alice");
+    const b = store.join("bob", "Bob");
+    b.spotKind = "lasting"; b.spotId = "denim cap"; store.persist();
+    const pab = manualPairing(store, a.id, b.id, future(), 5);
+    pab.giverAccepted = true; store.persist();
+    expect(pollFor(store, a)).toMatchObject({ role: "give", stage: "go", find: "denim cap" });
   });
 });
 

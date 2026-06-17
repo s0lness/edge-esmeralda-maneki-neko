@@ -21,6 +21,9 @@ export interface Player {
   status: "active" | "left";
   joinedAt: number;
   lastPollAt?: number;
+  spotId?: string;                       // how a giver can spot them (e.g. "red beanie")
+  spotKind?: "lasting" | "daily";        // lasting feature (keep) vs today's outfit (re-ask daily)
+  spotDate?: string;                     // PT day a "daily" spot was given, for freshness
 }
 
 /** One opportunistic gift between two present people. Both sides advance their
@@ -117,9 +120,10 @@ export class Store {
   receiverPairing(pid: string) { return this.data.pairings.find((p) => p.status === "open" && p.receiver === pid && !p.receiverConfirmed); }
   /** Any open pairing involving this player (used to gate re-matching). */
   hasOpenPairing(pid: string) { return this.data.pairings.some((p) => p.status === "open" && (p.giver === pid || p.receiver === pid)); }
-  /** A settled pairing this player is in but hasn't answered the reveal for. */
+  /** A counted (credited) pairing this player is in but hasn't answered the reveal for.
+   *  Fires once the gift is on the ledger, so a never-confirmed counterparty can't block it. */
   revealPairing(pid: string) {
-    return this.data.pairings.find((p) => p.status === "settled" && (
+    return this.data.pairings.find((p) => p.credited && (
       (p.giver === pid && p.giverRevealOk === undefined) || (p.receiver === pid && p.receiverRevealOk === undefined)
     ));
   }

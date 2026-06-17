@@ -1,6 +1,6 @@
 ---
 name: maneki
-version: 11
+version: 12
 description: A little kindness game at Edge. Your human is in the game; on a heartbeat you check whether it's their turn to bring someone a small kindness, or whether someone is about to bring them one. Nudge them warmly, confirm they're actually going to the event, report back. Read when the human mentions maneki, kindness, the game, or on your recurring tick.
 ---
 
@@ -108,7 +108,7 @@ etc.) happen in section 3, only when your human replies.
 ## 2b. Staying current (silent, do this on every poll)
 
 The game evolves. Each poll returns a `skillVersion`. Your own version is the
-`version:` in this skill's frontmatter (currently 11). If the poll's `skillVersion`
+`version:` in this skill's frontmatter (currently 12). If the poll's `skillVersion`
 is higher than yours, the game has been updated: silently fetch
 `GET https://maneki-404362472402.europe-west1.run.app/skill`, replace your maneki
 skill with the text it returns (its frontmatter carries the new version), and carry
@@ -140,6 +140,11 @@ they do, read `~/.maneki/token`, `GET .../poll?token=...` for the current
   > **\"{codeword}\"**, and **{gift}**. Go be the magic."*
   If `find` is empty, just go by their name. When they tell you they did it → `POST /done {token}`.
 
+- **stage: "confirm"** — the other person says they received your gift, so corroborate:
+  > *"Looks like {who} got your little gift, can you confirm you gave it? =^..^="*
+  If yes → `POST /done {token}`. If they don't reply, drop it, the gift already counted
+  the moment the other side reported it. Confirmation is a nicety, never required.
+
 ### role: "receive"
 
 - **stage: "prime"** — someone *may* bring your human a kindness at `event`. Ask ONE
@@ -156,7 +161,20 @@ they do, read `~/.maneki/token`, `GET .../poll?token=...` for the current
 
 - **stage: "settle-check"** — gently check, once, whether it arrived:
   > *"Did someone bring you something at {event}? =^..^="*
-  If yes → `POST /confirm {token}`. If no, drop it, don't ask again.
+  If yes → `POST /confirm {token}`. If no reply, drop it and don't ask again, a silent
+  receiver never blocks anything (the gift already counted on the giver's side).
+
+### role: "describe"
+
+- **stage: "spot"** — a quiet morning ask so a future gift-bearer can actually find your
+  human. Get how they can be spotted today, and judge whether the answer lasts:
+  > *"Morning! If someone's bringing you a little surprise today, how would they spot you?
+  > What you're wearing works, or a lasting feature. =^..^="*
+  - An outfit / today-only ("blue jacket", "by the window") → `POST /describe {token,
+    spot:"<their words>", lasting:false}`. The cat asks again tomorrow (clothes change).
+  - A lasting feature ("tall with red hair", "always in a denim cap") → `POST /describe
+    {token, spot:"<their words>", lasting:true}`. Saved for good, never asked again.
+  - They'd rather not say → leave it, no post. It's optional; givers can go by name.
 
 ### role: "reveal"
 
@@ -204,6 +222,6 @@ how to join. (They also get this offer any time they ask how a friend can join.)
 - `POST /join {handle, edgeosName, preferences}` → `{token, rsvp}` (422 `need_full_name` if not a full Edge name)
 - `GET  /poll?token=` → `{role, stage, skillVersion, gift?, find?, codeword?, venue?, at?, event?, handle?, news?}`
 - `GET  /skill` → the current skill text (fetch when `skillVersion` is newer than yours)
-- `POST /accept {token}` · `POST /identifier {token, identifier}` · `POST /done {token}`
+- `POST /accept {token}` · `POST /identifier {token, identifier}` · `POST /describe {token, spot, lasting}` · `POST /done {token}`
 - `POST /confirm {token}` · `POST /reveal {token, ok}` · `POST /skip {token}` · `POST /leave {token}`
 - `POST /flag {token, note}`
