@@ -52,19 +52,25 @@ export function runMatch(store: Store, presence: EventPresence[], now = Date.now
   // within 2h, using last poll, or join time if they have never polled yet.
   const LIVE_WINDOW_MS = 120 * 60_000;
   const isLive = (p: Player) => now - (p.lastPollAt ?? p.joinedAt) < LIVE_WINDOW_MS;
+  // Roles are NOT locked: a person can be giving to one human AND receiving from
+  // another at the same time. We only forbid giving twice, receiving twice, or a
+  // direct swap (A gives to B while B gives to A).
+  const linked = (a: string, b: string) =>
+    store.openPairings().some((x) => (x.giver === a && x.receiver === b) || (x.giver === b && x.receiver === a));
   const pairPool = (players: Player[], event: EdgeEvent) => {
-    const here = players.filter((p) => !store.hasOpenPairing(p.id) && !store.hasDeclined(p.id, event.id));
+    const ok = (p: Player) => !store.hasDeclined(p.id, event.id);
     // Ledger-balanced: a live player who has received more than given is first in line
-    // to GIVE; whoever is most owed (gave more than received) is first to RECEIVE. So
-    // "you received, now you give" falls out naturally over days.
-    const givers = here.filter(isLive).sort((a, b) => (b.received - b.given) - (a.received - a.given));
-    const receivers = [...here].sort((a, b) => (b.given - b.received) - (a.given - a.received));
-    const used = new Set<string>();
+    // to GIVE; whoever is most owed (gave more than received) is first to RECEIVE.
+    const givers = players.filter((p) => isLive(p) && !store.giverPairing(p.id) && ok(p))
+      .sort((a, b) => (b.received - b.given) - (a.received - a.given));
+    const receivers = players.filter((p) => !store.receiverPairing(p.id) && ok(p))
+      .sort((a, b) => (b.given - b.received) - (a.given - a.received));
+    const usedG = new Set<string>(), usedR = new Set<string>();
     for (const giver of givers) {
-      if (used.has(giver.id)) continue;
-      const receiver = receivers.find((p) => p.id !== giver.id && !used.has(p.id)); // receiver may be offline
-      if (!receiver) break;
-      used.add(giver.id); used.add(receiver.id);
+      if (usedG.has(giver.id)) continue;
+      const receiver = receivers.find((p) => p.id !== giver.id && !usedR.has(p.id) && !linked(giver.id, p.id));
+      if (!receiver) continue;
+      usedG.add(giver.id); usedR.add(receiver.id);
       make(giver, receiver, event);
     }
   };

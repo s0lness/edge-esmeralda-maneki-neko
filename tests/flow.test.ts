@@ -28,16 +28,20 @@ function manualPairing(store: Store, giver: string, receiver: string, endsAt: st
 const future = () => new Date(Date.now() + 2 * 3600_000).toISOString();
 
 describe("matcher", () => {
-  it("pairs co-present players into individual gifts (no cycle, nobody double-booked)", () => {
+  it("lets a person give and receive at once, but never give twice or receive twice", () => {
     const store = freshStore();
+    const now = Date.now();
     const names = ["Aa Aa", "Bb Bb", "Cc Cc", "Dd Dd"];
-    names.forEach((n) => store.join(n.toLowerCase(), n));
-    runMatch(store, presence(names, future(), future()), Date.now());
-    const ps = store.pairings();
-    expect(ps).toHaveLength(2); // 4 players -> 2 individual gifts
-    expect(ps.every((p) => p.giver !== p.receiver)).toBe(true);
-    const seen = ps.flatMap((p) => [p.giver, p.receiver]);
-    expect(new Set(seen).size).toBe(seen.length); // each person in at most one pairing
+    names.forEach((n) => { const p = store.join(n.toLowerCase(), n); p.lastPollAt = now; });
+    store.persist();
+    runMatch(store, presence(names, future(), future()), now);
+    const ps = store.openPairings();
+    const givers = ps.map((p) => p.giver), receivers = ps.map((p) => p.receiver);
+    expect(ps.every((p) => p.giver !== p.receiver)).toBe(true);      // no self-gift
+    expect(new Set(givers).size).toBe(givers.length);                // nobody gives twice
+    expect(new Set(receivers).size).toBe(receivers.length);          // nobody receives twice
+    // role is NOT locked: at least one person is both a giver and a receiver
+    expect(givers.some((g) => receivers.includes(g))).toBe(true);
   });
 
   it("never double-books a player already in an open pairing", () => {
