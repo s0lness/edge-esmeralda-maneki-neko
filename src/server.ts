@@ -61,6 +61,15 @@ async function tick() {
   runMatch(store, presence);
 }
 
+/** Count a gift on the ledger exactly once: one give for the giver, one receive for
+ *  the receiver. Fires on whichever side reports first (done or confirm). */
+function creditGift(pr: { giver: string; receiver: string; credited?: boolean }) {
+  if (pr.credited) return;
+  pr.credited = true;
+  const g = store.player(pr.giver); if (g) g.given++;
+  const r = store.player(pr.receiver); if (r) r.received++;
+}
+
 /** The one canonical background poller, served so agents never hand-write (and break)
  *  their own. Pure stdlib Python: reads the token, polls, prints ONE warm line only on
  *  a real, changed nudge; silent on idle and on any error (never spams). */
@@ -244,8 +253,8 @@ const server = createServer(async (req, res) => {
       switch (path) {
         case "/accept": { const gp = store.giverPairing(p.id); if (gp) gp.giverAccepted = true; store.persist(); break; }
         case "/identifier": { const rp = store.receiverPairing(p.id); if (rp) { rp.receiverReady = true; if (b.identifier) rp.identifier = String(b.identifier); } store.persist(); break; }
-        case "/done": { const gp = store.giverPairing(p.id); if (gp) { gp.giverDone = true; p.given++; store.trySettle(gp); } store.persist(); break; }
-        case "/confirm": { const rp = store.receiverPairing(p.id); if (rp) { rp.receiverConfirmed = true; p.received++; store.trySettle(rp); } store.persist(); break; }
+        case "/done": { const gp = store.giverPairing(p.id); if (gp) { gp.giverDone = true; creditGift(gp); store.trySettle(gp); } store.persist(); break; }
+        case "/confirm": { const rp = store.receiverPairing(p.id); if (rp) { rp.receiverConfirmed = true; creditGift(rp); store.trySettle(rp); } store.persist(); break; }
         case "/reveal": {
           const sv = store.revealPairing(p.id);
           if (sv) { if (sv.giver === p.id) sv.giverRevealOk = !!b.ok; else sv.receiverRevealOk = !!b.ok; store.persist(); }
@@ -333,6 +342,15 @@ const server = createServer(async (req, res) => {
         if (b.ready !== undefined) pair.receiverReady = !!b.ready;
         store.persist();
         return json(res, 200, { ok: true, pairing: pair });
+      }
+      if (method === "POST" && path === "/admin/setledger") {
+        const b = await readBody(req);
+        const p = store.players().find((x) => x.edgeosName.toLowerCase() === String(b.edgeosName ?? "").toLowerCase());
+        if (!p) return json(res, 404, { error: "player not found" });
+        if (b.given !== undefined) p.given = Number(b.given);
+        if (b.received !== undefined) p.received = Number(b.received);
+        store.persist();
+        return json(res, 200, { ok: true, edgeosName: p.edgeosName, given: p.given, received: p.received });
       }
       if (method === "POST" && path === "/admin/clear-pairings") {
         // Lapse all open pairings (no declines) for a clean re-match.

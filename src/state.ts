@@ -39,8 +39,9 @@ export interface Pairing {
   identifier?: string;      // receiver's optional "how to spot me"
   receiverReady: boolean;   // receiver confirmed they'll actually be at THIS event
   giverAccepted: boolean;
-  giverDone: boolean;       // giver says they gave -> giver.given++
-  receiverConfirmed: boolean; // receiver says they got it -> receiver.received++
+  giverDone: boolean;       // giver says they gave
+  receiverConfirmed: boolean; // receiver says they got it (corroboration)
+  credited?: boolean;       // the give+receive has been counted on the ledger (once)
   giverRevealOk?: boolean;
   receiverRevealOk?: boolean;
   status: "open" | "lapsed" | "settled";
